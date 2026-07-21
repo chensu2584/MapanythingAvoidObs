@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "world_frame": "base_link",
+  "translation_unit": "meter",
+  "map_inflation_m": 0.05,
+  "future_path_clearance_m": 0.02,
+  "self_filter_surface_margin_m": 0.005,
+  "self_filter_ambiguity_shell_m": 0.105,
+  "stationarity_limits": {
+    "max_arm_component_change_rad": 0.01,
+    "max_head_component_change_deg": 0.5,
+    "max_waist_pitch_change_rad": 0.01,
+    "max_waist_lift_change_m": 0.005
+  },
+  "wbc_fk_limits": {
+    "max_translation_error_m": 0.0005,
+    "max_rotation_error_deg": 0.05
+  },
+  "max_dense_cells": 100000000,
+  "unknown_space_policy": {
+    "outside_grid": "occupied",
+    "unoccupied_inside_grid": "assumed_free_not_raycast_verified"
+  }
+}

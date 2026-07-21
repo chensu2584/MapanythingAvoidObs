@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "description": "Early-experiment TCP calibration. Replace measured fields after physical measurement, then set confirmed=true explicitly.",
+  "world_frame": "hand_mount_local",
+  "matrix_direction": "hand_T_tcp",
+  "translation_unit": "meter",
+  "sides": {
+    "left": {
+      "mount_frame": "hand_left_base_link",
+      "tcp_frame": "gripper_left_tcp",
+      "mode": "urdf_reference_plus_measured_correction",
+      "urdf_reference_translation_m": [0.0, 0.0, 0.14308],
+      "urdf_reference_rpy_rad": [0.0, 0.0, 0.0],
+      "measured_correction_translation_m": [0.0, 0.0, 0.0],
+      "measured_correction_rpy_rad": [0.0, 0.0, 0.0],
+      "confirmed": false,
+      "measurement_note": "UNCONFIRMED: current value is only the Omnipicker URDF center offset."
+    },
+    "right": {
+      "mount_frame": "hand_right_base_link",
+      "tcp_frame": "gripper_right_tcp",
+      "mode": "urdf_reference_plus_measured_correction",
+      "urdf_reference_translation_m": [0.0, 0.0, 0.14308],
+      "urdf_reference_rpy_rad": [0.0, 0.0, 0.0],
+      "measured_correction_translation_m": [0.0, 0.0, 0.0],
+      "measured_correction_rpy_rad": [0.0, 0.0, 0.0],
+      "confirmed": false,
+      "measurement_note": "UNCONFIRMED: current value is only the Omnipicker URDF center offset."
+    }
+  }
+}
