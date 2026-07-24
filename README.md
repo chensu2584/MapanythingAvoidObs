@@ -1,12 +1,122 @@
-# G1 MapAnything 避障：阶段一、二
+# G1/G2 MapAnything 避障与路径规划准备
 
-这里目前只实现早期实验的前两阶段：夹爪 TCP 位姿/标定报告，以及从 MapAnything 占据体素生成
-操作地图。没有 IK、路径规划、轨迹生成或运动执行代码。
+G1 已实现早期实验的前两阶段：夹爪 TCP 位姿/标定报告，以及从 MapAnything 占据体素生成
+操作地图。G2 已实现聚类场景输入、机械臂规划核心、多初值 IK、双向 RRT-Connect 和稠密路径
+复核，并新增可交互 GUI。参数包 URDF 的 omnipicker 末端与实机夹爪不一致，因此完整 G2
+碰撞审计和规划仍强制闭锁，直到补充实机夹爪碰撞模型与 TCP；GUI 仅开放明确隔离的机械臂
+本体算法演示，没有轨迹时间参数化或运动执行代码。
 
 当前恢复点：`142521` 已建立全场景人工审核 schema v2 空白草稿，`39,552` 个源占据体素均可
 选择；当前 `selected=0`、`review_complete=false`，等待操作者进入 GUI 标绿。自动夹爪边界判断
 明确延后，不能把紫色/黄色提示当作已批准删除。完整实现与验证记录见
 [`WORK_LOG.md`](WORK_LOG.md)。
+
+## G2 聚类场景：规划输入准备
+
+`G2/expoutput3/snapshot_*/obstacles.json` 已能作为保守环境几何层使用。规划侧入口位于
+`avoidance/planning_scene.py`，支持严格校验 `box/cylinder`、独立规划膨胀和解析有符号距离；
+`markers` 仅作位姿参考，不参与碰撞。其中左右 `gripper_center` 来自不匹配的 omnipicker URDF，
+不能当作实机夹爪 TCP；头部和手部相机 marker 不受这项末端中心语义影响。
+
+批量审计：
+
+```bash
+cd /home/ck/MapAnythingTest
+conda run -n MAP env PYTHONPATH=Avoid \
+  python Avoid/scripts/audit_planning_scene.py \
+  --input G2/expoutput3 \
+  --planning-inflation-m 0.08 \
+  --out Avoid/reports/g2_expoutput3_planning_audit.json
+```
+
+当前 6 帧环境几何契约通过，但实机末端工具未确认，因此 6/6 起点碰撞审计均为 `not_run`。
+先前基于 omnipicker 得出的“4/6 可规划”和两帧夹爪碰撞结论已经撤回。详细结论见
+ [`G2_CLUSTER_PLANNING_READINESS.md`](G2_CLUSTER_PLANNING_READINESS.md)。
+
+## G2 避障 GUI
+
+GUI 已实现，默认读取 `G2/expoutput3` 的 6 个 snapshot。它在 `MAP` 环境显示聚类桌面、蓝盒子、
+其他盒/圆柱、相机与原点、G2 机身/头部/双臂、10 cm 规划安全边界和活动臂法兰路径；7 个目标
+关节可用滑杆调整，规划后可拖动时间轴或播放路径。右侧诊断显示起点状态、RRT 结果、碰撞查询
+次数和最小环境净距。
+
+```bash
+cd /home/ck/MapAnythingTest
+conda run --no-capture-output -n MAP \
+  env PYTHONPATH=Avoid MPLCONFIGDIR=/tmp/mapanything-matplotlib \
+  python Avoid/scripts/avoidance_gui.py
+```
+
+GUI 默认按屏幕 92%×88% 居中打开，并在高 DPI 桌面额外使用 `1.25` 的控件缩放。需要调整时可
+附加 `--ui-scale 1.0`（允许范围 `0.8`–`2.0`）；左侧控制栏固定最小宽度并可垂直滚动。
+
+GUI 通过一次性 JSON worker 调用 `robot` 环境的 Pinocchio/HPP-FCL/RRT，界面本身不需要混装
+机器人依赖。红色顶部栏固定声明当前是 `arm_body_demo`：只排除名称明确为 `gripper_*` 的 4 个
+错误 omnipicker 碰撞几何，使用 `arm_l/r_end_link` 法兰而不是未知 TCP，且只接受关节目标。
+机身、头部、左右臂和另一条固定手臂仍参与碰撞。此模式只能观察场景重建能否驱动绕障搜索，
+所有结果固定 `execution_authorized=false`，不能用于实机。
+
+无显示环境可验证完整 GUI 数据与绘图链路：
+
+```bash
+conda run -n MAP env PYTHONPATH=Avoid MPLCONFIGDIR=/tmp/mapanything-matplotlib \
+  python Avoid/scripts/avoidance_gui.py --smoke-test
+```
+
+输出为 [`reports/avoidance_gui_smoke.json`](reports/avoidance_gui_smoke.json) 与
+[`reports/avoidance_gui_smoke.png`](reports/avoidance_gui_smoke.png)。
+
+## G2 阶段三：离线单臂规划
+
+规划核心在 `robot` 环境运行。输入是同一 snapshot 的 `obstacles.json`、`capture_state.json`
+以及目标关节或目标夹爪中心位姿。当前默认
+[`configs/g2_end_effector_model.json`](configs/g2_end_effector_model.json) 明确记录
+`urdf_matches_installed=false`，所以命令只输出 `status=blocked` 清单，不调用碰撞、IK 或 RRT。
+
+目标关节 JSON 可用紧凑数组：
+
+```json
+{
+  "arm_joint_positions_rad": [0, 0, 0, -1.2, 0, -0.5, 0]
+}
+```
+
+门禁验证命令：
+
+```bash
+cd /home/ck/MapAnythingTest
+conda run -n robot env PYTHONPATH=Avoid \
+  python Avoid/scripts/plan_g2_avoidance.py \
+  --scene G2/expoutput3/snapshot_20260723_034729_0001 \
+  --capture-state G2/expoutput3/snapshot_20260723_034729_0001/capture_state.json \
+  --arm left \
+  --goal-joints Avoid/examples/g2_left_goal_034729_smoke.json \
+  --out Avoid/reports/g2_plan.json
+```
+
+当前命令应以退出码 2 和 `reason=installed_end_effector_model_unconfirmed` 结束。要开放离线规划，
+必须先提供左右实机夹爪的型号或尺寸、相对 `arm_l/r_end_link` 的保守碰撞几何，以及实测 TCP
+变换；随后更新机器人 URDF/mesh 和末端配置的哈希、确认字段与 TCP frame。仅把
+`confirmed` 改成 `true` 不会通过其余一致性检查。
+
+模型确认后，目标位姿可用 `--goal-pose` 提供米制 `base_T_goal` 4x4 矩阵；成功输出才会包含
+稠密关节路点、`base_T_tcp` 路径和最小环境间距。无论成功或失败，`execution_authorized`
+始终为 `false`。
+当前搜索把未被基本体占据的区域仅作为离线 `assumed_free`，并会在 manifest 中记录
+`validated_workspace_bounds_available=false`；这正是禁止执行的硬阻断项之一。
+
+命令行也可显式附加 `--arm-body-demo` 来复现 GUI 的关节目标算法演示。该开关拒绝
+`--goal-pose`、排除错误 `gripper_*` 几何并输出 `status=demo_planned`；它不是绕过完整规划门禁
+的方式，输出同样禁止执行。
+
+批量检查六个已有起点：
+
+```bash
+conda run -n robot env PYTHONPATH=Avoid \
+  python Avoid/scripts/audit_g2_planning_starts.py \
+  --input G2/expoutput3 \
+  --out Avoid/reports/g2_expoutput3_start_collision_audit.json
+```
 
 ## 环境与坐标约定
 
@@ -160,12 +270,13 @@ review 精确保存被选中的源体素索引，并绑定 `voxels.npz`、URDF�
 默认 0.105 m，仅是候选审计区。构建程序随后扩展 grid，并按体素立方体之间的真实欧氏距离做
 默认 0.05 m Minkowski 膨胀。
 
-`planning_ready=true` 只表示阶段二地图门禁通过，不表示可以执行。网格外始终视为占据；网格内
-空白目前只是 `assumed_free_not_raycast_verified`。后续规划器尚未实现，且还必须额外满足 TCP
-实测、2 cm 路径间距、完整机器人碰撞和实时反馈门禁。
+`planning_ready=true` 只表示对应离线规划门禁通过，不表示可以执行。网格外始终视为占据；
+网格内空白目前只是 `assumed_free_not_raycast_verified`。真机前仍需轨迹时间参数化、实时起点
+漂移、反馈新鲜度、跟踪误差、急停和人工二次确认门禁。
 
 ## 测试
 
 ```bash
 conda run -n MAP env PYTHONPATH=Avoid python -m unittest discover -s Avoid/tests -v
+conda run -n robot env PYTHONPATH=Avoid python -m unittest discover -s Avoid/tests -v
 ```

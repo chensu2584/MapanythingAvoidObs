@@ -20,5 +20,30 @@
   "unknown_space_policy": {
     "outside_grid": "occupied",
     "unoccupied_inside_grid": "assumed_free_not_raycast_verified"
+  },
+  "cluster_scene_planning": {
+    "input": "obstacles.json",
+    "environment_inflation_m": 0.08,
+    "future_edge_clearance_m": 0.02,
+    "markers_are_obstacles": false,
+    "outside_validated_workspace": "occupied",
+    "unmodeled_space_policy": "assumed_free_for_offline_search_only",
+    "require_world_frame": "base_link",
+    "require_translation_unit": "meter"
+  },
+  "g2_planner": {
+    "end_effector_model_config": "configs/g2_end_effector_model.json",
+    "joint_limit_margin_rad": 0.02,
+    "ik_seed_count": 12,
+    "ik_position_tolerance_m": 0.005,
+    "ik_rotation_tolerance_deg": 2.0,
+    "extension_step_rad": 0.18,
+    "edge_step_rad": 0.04,
+    "max_link_step_m": 0.02,
+    "max_iterations": 4000,
+    "timeout_s": 15.0,
+    "goal_bias": 0.12,
+    "smoothing_attempts": 120,
+    "random_seed": 7
   }
 }

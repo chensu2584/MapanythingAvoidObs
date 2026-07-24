@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "robot_profile": "g2",
+  "urdf_sha256": "32daa84c58023cd8fa47f01c0518f53d73ba9b069155005d22e5d0e7d100fafb",
+  "collision_mesh_bundle_sha256": "ce3660802b2cfc15a45de1581575da35f5f80fa30f4c7bb9de2e10ad3c5be932",
+  "pairs": [
+    {"geometry_a": "body_link2_0", "geometry_b": "body_link4_2"},
+    {"geometry_a": "body_link5_0", "geometry_b": "head_link3_0"},
+    {"geometry_a": "arm_l_link5_0", "geometry_b": "arm_l_link7_0"},
+    {"geometry_a": "arm_r_link5_0", "geometry_b": "arm_r_link7_0"}
+  ]
+}

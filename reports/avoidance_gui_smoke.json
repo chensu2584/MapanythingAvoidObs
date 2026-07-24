@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "mode": "arm_body_demo",
+  "execution_authorized": false,
+  "snapshot": "snapshot_20260723_034729_0001",
+  "plan_status": "demo_planned",
+  "planner_reason": "direct_path",
+  "waypoint_count": 2,
+  "minimum_environment_clearance_m": 0.01659769418561551,
+  "ignored_collision_geometries": [
+    "gripper_l_camera_link_0",
+    "gripper_l_base_link_0",
+    "gripper_r_camera_link_0",
+    "gripper_r_base_link_0"
+  ],
+  "screenshot": "/home/ck/MapAnythingTest/Avoid/reports/avoidance_gui_smoke.png"
+}

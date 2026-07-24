@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "status": "blocked",
+  "snapshot_count": 6,
+  "valid_start_count": 0,
+  "previous_omnipicker_based_results_valid": false,
+  "end_effector_model": {
+    "ready": false,
+    "source": "/home/ck/MapAnythingTest/Avoid/configs/g2_end_effector_model.json",
+    "source_sha256": "9d8e27e2366a33691dfb033f5bbd37d2d1238cc90da06896fef2f4e37eac3b2b",
+    "urdf_end_effector_model": "omnipicker",
+    "installed_end_effector_model": "unknown_non_omnipicker_gripper",
+    "checks": {
+      "confirmed": false,
+      "urdf_matches_installed": false,
+      "collision_geometry_confirmed": false,
+      "tcp_frames_confirmed": false,
+      "robot_urdf_sha256_matches": true,
+      "collision_mesh_bundle_sha256_matches": true,
+      "tcp_frames_present": false,
+      "tcp_frames_exist_in_robot": false,
+      "declared_blockers_clear": false,
+      "required_next_inputs_clear": false
+    },
+    "tcp_frames": {
+      "left": null,
+      "right": null
+    },
+    "blockers": [
+      "The G2 URDF describes an omnipicker end-effector that is not the gripper installed on the robot.",
+      "No collision mesh or conservative primitive model for the installed left/right grippers is available.",
+      "The installed gripper TCP transforms have not been supplied or measured.",
+      "End-effector configuration is not confirmed.",
+      "URDF end-effector does not match the installed gripper.",
+      "Installed gripper collision geometry is not confirmed.",
+      "Installed gripper TCP frames are not confirmed.",
+      "Left/right installed gripper TCP frames are missing.",
+      "Configured TCP frames do not exist in the robot model.",
+      "End-effector contract still declares unresolved blockers.",
+      "End-effector contract still declares required inputs."
+    ],
+    "required_next_inputs": [
+      "Installed gripper manufacturer/model or photographs with measured dimensions.",
+      "Left and right collision mesh, or conservative box/cylinder dimensions and arm-end transforms.",
+      "Measured arm-end-to-TCP transforms for both sides."
+    ]
+  },
+  "snapshots": [
+    {
+      "snapshot": "snapshot_20260723_034729_0001",
+      "valid": false,
+      "not_run": true,
+      "reason": "installed_end_effector_model_unconfirmed"
+    },
+    {
+      "snapshot": "snapshot_20260723_034806_0002",
+      "valid": false,
+      "not_run": true,
+      "reason": "installed_end_effector_model_unconfirmed"
+    },
+    {
+      "snapshot": "snapshot_20260723_034838_0003",
+      "valid": false,
+      "not_run": true,
+      "reason": "installed_end_effector_model_unconfirmed"
+    },
+    {
+      "snapshot": "snapshot_20260723_034923_0004",
+      "valid": false,
+      "not_run": true,
+      "reason": "installed_end_effector_model_unconfirmed"
+    },
+    {
+      "snapshot": "snapshot_20260723_035146_0005",
+      "valid": false,
+      "not_run": true,
+      "reason": "installed_end_effector_model_unconfirmed"
+    },
+    {
+      "snapshot": "snapshot_20260723_035236_0006",
+      "valid": false,
+      "not_run": true,
+      "reason": "installed_end_effector_model_unconfirmed"
+    }
+  ],
+  "execution_authorized": false
+}

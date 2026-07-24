@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "robot_profile": "g2",
+  "urdf_end_effector_model": "omnipicker",
+  "installed_end_effector_model": "unknown_non_omnipicker_gripper",
+  "confirmed": false,
+  "urdf_matches_installed": false,
+  "collision_geometry_confirmed": false,
+  "tcp_frames_confirmed": false,
+  "tcp_frames": {"left": null, "right": null},
+  "urdf_sha256": "32daa84c58023cd8fa47f01c0518f53d73ba9b069155005d22e5d0e7d100fafb",
+  "collision_mesh_bundle_sha256": "ce3660802b2cfc15a45de1581575da35f5f80fa30f4c7bb9de2e10ad3c5be932",
+  "blockers": [
+    "The G2 URDF describes an omnipicker end-effector that is not the gripper installed on the robot.",
+    "No collision mesh or conservative primitive model for the installed left/right grippers is available.",
+    "The installed gripper TCP transforms have not been supplied or measured."
+  ],
+  "required_next_inputs": [
+    "Installed gripper manufacturer/model or photographs with measured dimensions.",
+    "Left and right collision mesh, or conservative box/cylinder dimensions and arm-end transforms.",
+    "Measured arm-end-to-TCP transforms for both sides."
+  ]
+}

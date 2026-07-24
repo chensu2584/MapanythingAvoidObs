@@ -1,7 +1,7 @@
-# G1 MapAnything 早期避障实验计划
+# G1/G2 MapAnything 早期避障实验计划
 
-状态：阶段一、二已实现并进入审计；阶段三以后尚未开始  
-复核日期：2026-07-21  
+状态：G1 阶段一、二已实现；G2 规划核心已实现，但实机夹爪模型不匹配而强制闭锁
+复核日期：2026-07-24
 目标代码目录：`/home/ck/MapAnythingTest/Avoid`
 
 ## 1. 实验边界
@@ -21,6 +21,10 @@
   缺少元数据时必须拒绝，不能猜测。
 - `/home/ck/robot_test/G1.urdf` 可由 Pinocchio 加载为 18 DoF、61 个碰撞对象；碰撞几何是
   自包含的球体、圆柱等 primitive，不依赖缺失的视觉 STL。
+- G2 参数包 URDF 可由 Pinocchio 3.9 加载为 `nq=50/nv=46`、35 个碰撞对象；27 个 STL
+  package URI 在 `Avoid` 内规范化到参数包实际 `mesh/` 路径，不修改源 URDF。
+- 该 G2 URDF 的 omnipicker 末端不是实机当前夹爪；URDF 夹爪碰撞体、中心 frame 和此前
+  基于它的路径结论均不能用于实机。正确碰撞外形和 `arm_end_T_TCP` 未提供前规划必须闭锁。
 - 当前夹爪中心近似为 `Link_hand_l/r` 局部 `+Z` 方向 0.14308 m。有效 TCP 定义为：
 
   `base_T_TCP = base_T_Link_hand @ hand_T_TCP_measured`
@@ -81,8 +85,8 @@ Pinocchio 3.9 和 hpp-fcl 3.0.2，但没有 OMPL；RRT-Connect 适合快速找�
 最大 TCP/连杆位移；不能只检查离散 waypoint。环境距离针对已经膨胀 5 cm 的地图再要求至少
 2 cm，因此相对原始重建表面的名义安全距离约为 7 cm，另有体素量化余量。
 
-成功路径经过碰撞约束下的 shortcut smoothing，再由 Ruckig 生成速度、加速度和 jerk 受限的
-20--30 Hz 轨迹。任何简化或时间参数化之后都必须重新密集碰撞检查。
+成功路径已经过碰撞约束下的 shortcut smoothing 和稠密复核。Ruckig 速度、加速度和 jerk
+受限的 20--30 Hz 轨迹仍是下一阶段；任何时间参数化之后都必须再次密集碰撞检查。
 
 ## 6. 模块划分
 
@@ -90,6 +94,7 @@ Pinocchio 3.9 和 hpp-fcl 3.0.2，但没有 OMPL；RRT-Connect 适合快速找�
 Avoid/
 ├── configs/
 │   ├── avoidance_defaults.json
+│   ├── g2_end_effector_model.json
 │   └── tcp_calibration.json
 ├── avoidance/
 │   ├── contracts.py
@@ -98,25 +103,32 @@ Avoid/
 │   ├── shell_review.py
 │   ├── tcp_model.py
 │   ├── robot_model.py
+│   ├── planning_scene.py
+│   ├── end_effector_model.py
+│   ├── g2_robot_model.py
 │   ├── ik_solver.py
 │   ├── collision_checker.py
 │   ├── rrt_connect.py
-│   ├── trajectory.py
+│   ├── planner.py
+│   ├── trajectory.py                 # 未实现
 │   ├── sdk_bridge.py
 │   └── worker_protocol.py
 ├── scripts/
 │   ├── report_gripper_pose.py
 │   ├── build_operation_map.py
 │   ├── review_self_filter.py
-│   ├── plan_avoidance.py
-│   ├── execute_avoidance.py
+│   ├── audit_planning_scene.py
+│   ├── plan_g2_avoidance.py
+│   ├── audit_g2_planning_starts.py
+│   ├── execute_avoidance.py          # 未实现
 │   └── avoidance_gui.py
 └── tests/
 ```
 
 GUI 只负责选择、显示、确认和调用 worker。地图处理、FK/IK、碰撞、规划、时间参数化与 SDK
 执行不得堆入 GUI 文件。MAP 环境负责 Open3D/Trimesh 地图处理和显示；robot 环境负责
-Pinocchio/hpp-fcl、实时状态和执行；二者通过 JSON-lines worker 协议通信。
+Pinocchio/hpp-fcl、实时状态和执行；当前 GUI 已通过一次性 JSON 文件 worker 跨环境调用，
+后续实时反馈再扩展为长驻协议。
 
 ## 7. 执行门禁
 
@@ -138,7 +150,7 @@ Pinocchio/hpp-fcl、实时状态和执行；二者通过 JSON-lines worker 协�
 
 只有以上离线门禁完成后，才开始真机路径执行验证。
 
-## 9. 当前实现进度（2026-07-21）
+## 9. 当前实现进度（2026-07-24）
 
 - 阶段一已实现：TCP 标定配置、离线 capture 位姿报告、只读实时 SDK 位姿报告、URDF FK 与
   WBC Link7 交叉校验。TCP 配置仍为未确认，执行门禁保持关闭。
@@ -149,6 +161,16 @@ Pinocchio/hpp-fcl、实时状态和执行；二者通过 JSON-lines worker 协�
   mask，不自动批准紫色 core。当前草稿 selected=0、`review_complete=false`，自动夹爪边界判断
   延后；在操作者完成选择之前不能生成可用的 self-filtered operation map。
 - 旧 schema v1 黄色审核继续兼容；两种模式使用不同文件名和契约，禁止混用。
-- 阶段三以后的 IK、碰撞检查、RRT-Connect、轨迹和执行模块没有创建，也没有发送任何运动命令。
+- G2 阶段三已实现：22 关节 capture 起点校验、URDF/STL FK、35 个完整机器人碰撞体、
+  URDF 与 mesh bundle 哈希绑定的允许碰撞矩阵、box/cylinder 环境 HPP-FCL、多初值 IK、
+  7 维 RRT-Connect、
+  shortcut 和按关节/连杆/TCP 位移自适应的稠密复核。
+- 上述是规划核心能力，不代表当前实机模型完整。新增 `g2_end_effector_model.json` 门禁后，
+  `expoutput3` 六个起点全部 `not_run`；旧 4/6 结论和 omnipicker 烟测已撤回。
+- G2 避障 GUI 已实现：可选择 6 个聚类 snapshot 和左右臂、调整 7 轴目标、规划、拖动时间轴与
+  播放路径；显示原始基本体、10 cm 安全边界、整机骨架和诊断。由于实机夹爪未知，只开放
+  `arm_body_demo`，排除 4 个 `gripper_*` omnipicker 几何并使用腕部法兰，输出不能执行。
+- 阶段四轨迹时间参数化、实时状态漂移门禁和 SDK 执行尚未实现；全部计划清单固定
+  `execution_authorized=false`，没有发送任何运动命令。
 
 逐项完成记录、产物哈希、测试结果和恢复命令见 `WORK_LOG.md`。
