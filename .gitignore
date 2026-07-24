@@ -1,2 +1,11 @@
 __pycache__/
 *.py[cod]
+.DS_Store
+
+# Large reconstruction binaries in the interaction/ demo data: keep the small
+# obstacles.json (the planning-scene input) but never commit the heavy meshes.
+interaction/**/*.glb
+interaction/**/*.ply
+interaction/**/*.npz
+interaction/**/*.png
+interaction/**/head_depth_raw16.png

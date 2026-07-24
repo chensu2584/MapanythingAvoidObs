@@ -20,8 +20,11 @@ from .rrt_connect import RRTConnectPlanner
 def plan_g2_avoidance(*, scene_path: str | Path, capture_state_path: str | Path, side: str, goal_arm: np.ndarray | None = None, goal_pose: np.ndarray | None = None, goal_source_path: str | Path | None = None, defaults_path: str | Path | None = None, urdf_path: str | Path | None = None, end_effector_config_path: str | Path | None = None, arm_body_demo: bool = False) -> dict[str, Any]:
     if (goal_arm is None) == (goal_pose is None):
         raise AvoidanceError("Provide exactly one goal")
-    if arm_body_demo and goal_pose is not None:
-        raise AvoidanceError("Arm-body demo accepts joint goals only because installed TCP is unknown")
+    # A Cartesian goal in arm-body demo mode is permitted, but it can only ever
+    # track the arm-end flange -- a confirmed URDF frame -- never the unconfirmed
+    # installed-gripper TCP.  ``tracking`` below is forced to the flange for demo
+    # mode, so a ``goal_pose`` here is unambiguously a flange target and stays
+    # execution_authorized=False like every other demo output.
     root = Path(__file__).resolve().parents[1]
     defaults_file = Path(defaults_path or root / "configs/avoidance_defaults.json").resolve()
     defaults = read_json(defaults_file)
@@ -56,7 +59,7 @@ def plan_g2_avoidance(*, scene_path: str | Path, capture_state_path: str | Path,
             random_seed=settings["random_seed"] + 10,
         )
         base["goal"] = {
-            "type": "tcp_pose",
+            "type": "flange_pose" if arm_body_demo else "tcp_pose",
             "frame": tracking,
             "base_T_goal": np.asarray(goal_pose).tolist(),
             "ik": ik.to_dict(),

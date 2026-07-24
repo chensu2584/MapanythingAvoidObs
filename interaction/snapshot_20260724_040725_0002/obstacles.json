@@ -1,0 +1,183 @@
+{
+  "world_frame": "base_link",
+  "unit": "meter",
+  "box_inflation_m": 0.08,
+  "boxes": [
+    {
+      "id": 0,
+      "primitive": "box",
+      "role": "support",
+      "center_m": [
+        0.6465,
+        -0.1323,
+        0.6221
+      ],
+      "size_m": [
+        0.82,
+        2.02,
+        0.06
+      ],
+      "color": [
+        183,
+        184,
+        184
+      ],
+      "voxel_count": 14668
+    },
+    {
+      "id": 1,
+      "primitive": "box",
+      "role": "object",
+      "center_m": [
+        0.3465,
+        0.0177,
+        0.9871
+      ],
+      "size_m": [
+        0.04,
+        0.02,
+        0.05
+      ],
+      "color": [
+        18,
+        18,
+        22
+      ],
+      "voxel_count": 30
+    },
+    {
+      "id": 2,
+      "primitive": "box",
+      "role": "object",
+      "center_m": [
+        0.7315,
+        0.0527,
+        0.8071
+      ],
+      "size_m": [
+        0.45,
+        0.53,
+        0.25
+      ],
+      "color": [
+        199,
+        202,
+        207
+      ],
+      "voxel_count": 4374
+    },
+    {
+      "id": 3,
+      "primitive": "box",
+      "role": "object",
+      "center_m": [
+        0.7915,
+        -0.2673,
+        0.7221
+      ],
+      "size_m": [
+        0.31,
+        0.27,
+        0.08
+      ],
+      "color": [
+        107,
+        113,
+        168
+      ],
+      "voxel_count": 486
+    },
+    {
+      "id": 4,
+      "primitive": "box",
+      "role": "object",
+      "center_m": [
+        0.7115,
+        0.3577,
+        0.9071
+      ],
+      "size_m": [
+        0.05,
+        0.04,
+        0.03
+      ],
+      "color": [
+        90,
+        95,
+        98
+      ],
+      "voxel_count": 38
+    },
+    {
+      "id": 5,
+      "primitive": "box",
+      "role": "object",
+      "center_m": [
+        0.7915,
+        0.3677,
+        0.8671
+      ],
+      "size_m": [
+        0.07,
+        0.06,
+        0.15
+      ],
+      "color": [
+        92,
+        96,
+        97
+      ],
+      "voxel_count": 49
+    },
+    {
+      "id": 6,
+      "primitive": "box",
+      "role": "object",
+      "center_m": [
+        0.8765,
+        0.3577,
+        0.8921
+      ],
+      "size_m": [
+        0.14,
+        0.18,
+        0.16
+      ],
+      "color": [
+        130,
+        133,
+        131
+      ],
+      "voxel_count": 211
+    },
+    {
+      "id": 7,
+      "primitive": "box",
+      "role": "object",
+      "center_m": [
+        0.8715,
+        0.4627,
+        0.9671
+      ],
+      "size_m": [
+        0.05,
+        0.07,
+        0.05
+      ],
+      "color": [
+        81,
+        85,
+        86
+      ],
+      "voxel_count": 33
+    }
+  ],
+  "markers": [],
+  "provenance": {
+    "voxels_sha256": "0097a41aaf7fd39348f0c202764f75575c7902c56b94ed95d9991da96c7bfa6f",
+    "extrinsics_sha256": "70dda6fc3260deb22b282de07c7ad48567fa5e22f149eb755bfa726f43d9d195",
+    "table_top_z_m": 0.6421,
+    "kept_voxels": 45190,
+    "capture_state_sha256": "9af94d40f0a7081eb1e12ee8c677aa3f4a26d21c23c0c85f14e8094ae917cc85"
+  }
+}

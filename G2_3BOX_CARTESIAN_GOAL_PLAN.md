@@ -512,3 +512,56 @@ GUI 按名称排序，默认选择
 - 未启动新数据 GUI；
 - 未运行第一帧路径规划；
 - 未发送任何机器人命令。
+
+## 15. 实施状态（2026-07-24 更新，本机 numpy/scipy/sklearn/trimesh，无 pinocchio/显示）
+
+已按本计划落地并**在本机可测的部分全部通过测试**（pinocchio/显示相关只能语法+模式核对）：
+
+| 里程碑 | 交付 | 状态 |
+|---|---|---|
+| M1 简化编排 | `scripts/simplify_g2_snapshots.py`：复用 `scene_simplify.py`，加 support/object 分类 + Avoid schema，fail-closed 过 `load_planning_scene` | **已跑** `interaction/` 两帧 → 0001=1 support+3 object，0002=1+7；obstacles.json 已写 |
+| M2 契约+几何 | `avoidance/cartesian_goal.py`：12 边、投影线段最近点、anchor+法向+offset、旋转策略、`CartesianGoal` schema+哈希，`execution_authorized` 恒 False | **13 单测通过** |
+| M2 planner | `avoidance/planner.py`：放开 arm-body-demo 的笛卡尔目标（**仅跟踪法兰**，非 TCP），goal 记录标为 `flange_pose` | 代码就位，需 pinocchio 跑 |
+| M3 worker | `scripts/g2_gui_worker.py`：新增 `preview_cartesian_goal`（快速 IK+碰撞，返回 request_id/target_status/skeleton）与 `plan_cartesian_goal`；worker 内**自算旋转**（不信 GUI 缓存） | 代码就位，需 pinocchio 跑 |
+| M3/M4 状态机 | `avoidance/cartesian_target_controller.py`：点选→目标、XYZ 微调、翻转法向、offset、request_id 去抖丢弃过期、warm-start seed、`can_plan` 门禁、matplotlib 投影桥 | **10 单测通过**（含无头投影测试） |
+| M4 GUI | `scripts/avoidance_gui.py`：笛卡尔面板（点选提示、XYZ ±1mm/±1cm、offset、翻转、target 状态色、笛卡尔规划按钮）、画布点选、200ms 去抖预览、target 叠加渲染、poll 路由；原 7 关节滑杆保留为“高级/回归” | 语法通过，需**显示+worker(pinocchio)** 跑 |
+
+其余未做：cylinder 拟合与其边采样（首版 box-only）、goal JSON 落盘按钮、5 帧统计漂移报告、§12 集成测试中需 pinocchio 的那部分。
+
+## 16. 在有环境的机器上的接续步骤
+
+本机（numpy/scipy/sklearn/trimesh，无 pinocchio、无显示）无法运行 IK/碰撞/GUI，
+以下几步必须在装好机器人后端与图形环境的机器上完成，才能让这套脚本按预期跑通：
+
+1. **两个 conda 环境（GUI 与 worker 分离，见 `scripts/avoidance_gui.py` 的 `RobotWorker`）**：
+   - GUI 进程：matplotlib/tkinter（§10 用 `-n MAP`）。
+   - worker 子进程固定用 `conda run -n robot`，该 `robot` 环境**必须能 `import pinocchio, hppfcl`**（IK 与碰撞全靠它）。
+     `planner.py`/`g2_gui_worker.py`/GUI 因此在无 pinocchio 机器上**未经运行验证，仅语法+模式核对**，需在此环境实测。
+
+2. **装 pytest 跑全套**：`PYTHONPATH=. python3 -m pytest tests/ -q`。
+   有 pinocchio 时，`test_g2_planning` 里 3 个 `skipped`（"robot backend required"）与 planner 集成路径才会真正执行——
+   这是验证 worker 新增 `preview_cartesian_goal` / `plan_cartesian_goal` 与 IK 的关键一步。
+   （无 pinocchio 机器上 `test_g2_planning::test_capture` 会因引用不存在的 `G2/expoutput3/.../capture_state.json` 失败，与本次改动无关。）
+
+3. **生成全部 5 帧 3box 的 `obstacles.json`**（本机只处理了 `interaction/` 的 2 帧）：
+   ```
+   PYTHONPATH=. python3 scripts/simplify_g2_snapshots.py --scene-root <G2/3box> \
+     --pipeline <MapAnythingPipeline 路径>     # 或设环境变量 MAPANYTHING_PIPELINE
+   ```
+   需每帧 `<snap>_input/camera_extrinsics.json`（旧格式）。跑完按 §9 阶段 C 人工审核：
+   桌面为一个 support、三主体不消失/不误并、无夹爪残留。注意本地 0001 的 object `id=1` 是 0.4×0.51 m 大盒，
+   **可能并了相邻箱体**，需确认；必要时调 `--cluster-eps` / `--min-cluster`。
+
+4. **启动 GUI 端到端验证交互**（本机测不了，须实机确认）：
+   ```
+   PYTHONPATH=. python3 scripts/avoidance_gui.py --scene-root <G2/3box>
+   ```
+   - 点选一条**物体边** → 生成目标球；
+   - XYZ ±1mm/1cm、offset、翻转法向 → 目标球实时变色（灰=未解 / 绿=可达无碰 / 橙=可达但碰撞 / 红=不可达）；
+   - 仅当绿色时"笛卡尔目标规划"按钮亮 → 点击跑 RRT-Connect；
+   - 重点核对三处本机未跑的逻辑：**画布点选的像素投影是否对准边**、**worker preview 的 IK/碰撞是否符合预期**、**快速拖动去抖是否只保留最后结果**。
+
+5. **每帧目录须有 `capture_state.json`**（worker 的 `load_g2_capture_state` 依赖；`interaction/` 两帧已具备）。
+
+6. **升级到实机夹爪终点前的红线不变**（§13）：当前仅"法兰点演示"，`execution_authorized` 恒 False；
+   要跟踪真实夹爪 TCP，仍需实机夹爪保守碰撞几何 + 实测 `arm_end_T_tcp` + 重新绑定 URDF/mesh/config 哈希。
