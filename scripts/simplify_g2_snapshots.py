@@ -116,7 +116,10 @@ def simplify_snapshot(pipeline, voxels_path: Path, extrinsics_path: Path, out_di
 
     obstacle_mask = W[:, 2] > table_top_z + obstacle_height
     boxes, _ = pipeline.axis_aligned_boxes(W[obstacle_mask], C[obstacle_mask],
-                                           eps=cluster_eps, min_samples=2, min_cluster=min_cluster)
+                                           eps=cluster_eps, min_samples=2,
+                                           min_cluster=min_cluster,
+                                           voxel_size=float(meta["voxel_size"]),
+                                           primitive_mode="box")
     for b in boxes:
         primitives.append({"id": len(primitives), "primitive": "box", "role": "object",
                            "center_m": b["center_m"], "size_m": b["size_m"],

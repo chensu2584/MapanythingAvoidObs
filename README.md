@@ -37,7 +37,8 @@ conda run -n MAP env PYTHONPATH=Avoid \
 
 GUI 已实现，默认读取 `G2/expoutput3` 的 6 个 snapshot。它在 `MAP` 环境显示聚类桌面、蓝盒子、
 其他盒/圆柱、相机与原点、G2 机身/头部/双臂、10 cm 规划安全边界和活动臂法兰路径；7 个目标
-关节可用滑杆调整，规划后可拖动时间轴或播放路径。右侧诊断显示起点状态、RRT 结果、碰撞查询
+关节可用滑杆调整，并已增加物体边点选、XYZ/approach offset 微调、Cartesian IK/碰撞 preview
+和法兰目标规划。规划后可拖动时间轴或播放路径。右侧诊断显示起点状态、RRT 结果、碰撞查询
 次数和最小环境净距。
 
 ```bash
@@ -52,9 +53,14 @@ GUI 默认按屏幕 92%×88% 居中打开，并在高 DPI 桌面额外使用 `1.
 
 GUI 通过一次性 JSON worker 调用 `robot` 环境的 Pinocchio/HPP-FCL/RRT，界面本身不需要混装
 机器人依赖。红色顶部栏固定声明当前是 `arm_body_demo`：只排除名称明确为 `gripper_*` 的 4 个
-错误 omnipicker 碰撞几何，使用 `arm_l/r_end_link` 法兰而不是未知 TCP，且只接受关节目标。
+错误 omnipicker 碰撞几何，使用 `arm_l/r_end_link` 法兰而不是未知 TCP。
 机身、头部、左右臂和另一条固定手臂仍参与碰撞。此模式只能观察场景重建能否驱动绕障搜索，
 所有结果固定 `execution_authorized=false`，不能用于实机。
+
+`G2/3box` 第三帧已验证点选和 preview 链路，但简化 primitive 与左臂起点接触；当前 planner
+仍会以 `start_configuration_in_collision` 拒绝。下一步采用受约束脱离前缀，再从首个正常
+无碰状态运行 RRT；不会全局忽略该障碍。关节可行性、未知夹爪处理、聚类精度门禁和恢复方案
+详见 [`G2_DANGER_START_AND_VALIDATION_PLAN.md`](G2_DANGER_START_AND_VALIDATION_PLAN.md)。
 
 无显示环境可验证完整 GUI 数据与绘图链路：
 

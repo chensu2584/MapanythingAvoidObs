@@ -218,3 +218,24 @@ conda run -n MAP python Avoid/scripts/review_self_filter.py \
   `execution_authorized=false` 和 `execution_valid=false`。
 - 无显示冒烟测试产物：
   `reports/avoidance_gui_smoke.json`、`reports/avoidance_gui_smoke.png`。
+
+## 2026-07-24：3box 第三帧 Cartesian GUI 与危险起点
+
+- 阅读并复核 `G2_3BOX_CARTESIAN_GOAL_PLAN.md` 的最新实施状态。
+- 使用 `snapshot_20260724_040817_0003` 生成规划场景，最终为 1 support + 4 objects。
+- 修复 `simplify_g2_snapshots.py` 未把 `voxel_size` 传给 object AABB 拟合的问题，避免单轴
+  尺寸成为 `0 m`；首版继续显式使用 box，以匹配当前 box-edge picking。
+- 在 `MAP` GUI 与 `robot` worker 环境实际跑通边点选、XYZ/offset 调整、Cartesian preview、
+  Pinocchio IK 和 HPP-FCL 响应。
+- 第三帧起点没有自碰撞，但 `arm_l_link5/6/7` 与 primitive `2` 接触。该 primitive 约为
+  `0.52 x 0.76 x 0.32 m`；环境使用 8 cm inflation + 2 cm clearance。
+- 当前 planner 按设计拒绝危险起点。已确定下一阶段采用“受约束脱离前缀 + 正常无碰 RRT”：
+  只容许初始环境接触逐步减少，不允许新接触、自碰撞、碰撞加重或脱离后重入。
+- 当前关节可行性只覆盖收紧 URDF 限位、IK、运动学和稠密碰撞；尚无时间参数化、速度/加速度/
+  力矩或跟踪误差验证。
+- 当前实机夹爪未知；demo 排除 4 个错误 omnipicker `gripper_*` collision geometry，跟踪
+  `arm_l/r_end_link` 法兰，所有结果禁止执行。
+- 当前聚类只有启发式与 schema 保证，没有语义精度保证；第三帧大 AABB 是待解决的误合并/
+  过包围风险。后续需增加覆盖率、过包围率、组件映射、跨帧稳定性和机器人重叠报告。
+- 完整方案与验收条件见
+  `G2_DANGER_START_AND_VALIDATION_PLAN.md`。

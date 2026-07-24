@@ -565,3 +565,16 @@ GUI 按名称排序，默认选择
 
 6. **升级到实机夹爪终点前的红线不变**（§13）：当前仅"法兰点演示"，`execution_authorized` 恒 False；
    要跟踪真实夹爪 TCP，仍需实机夹爪保守碰撞几何 + 实测 `arm_end_T_tcp` + 重新绑定 URDF/mesh/config 哈希。
+
+## 17. 第三帧 GUI 验证与下一恢复点（2026-07-24）
+
+- 已处理 `snapshot_20260724_040817_0003`，最终输出 1 support + 4 object boxes。
+- 修复 object AABB 退化轴：向 pipeline 传入真实 `voxel_size`，尺寸不再出现 `0 m`。
+- 新版 GUI 已在本机实际启动，box edge picking、XYZ/offset、Cartesian preview 与 robot worker
+  响应均已跑通。
+- 当前第三帧起点没有自碰撞，但左臂 link 5/6/7 与大 primitive `2` 接触；Cartesian preview
+  可用，RRT 因危险起点按设计拒绝。
+- 下一步不删除障碍或全局放宽碰撞，而是实现受约束脱离前缀：初始环境接触只能减少，不能
+  新增或加重；首次 clear 后恢复现有完整碰撞约束并禁止重入。
+- 关节可行性边界、未知夹爪处理、聚类精度门禁和危险起点详细设计见
+  [`G2_DANGER_START_AND_VALIDATION_PLAN.md`](G2_DANGER_START_AND_VALIDATION_PLAN.md)。
