@@ -175,7 +175,11 @@ conda run --no-capture-output -n MAP \
 - `--gripper-forward-offset`：沿腕相机光轴额外前移（对近相机体素覆盖率在 **0.08–0.10 m** 处见顶）；
 - `--gripper-down-offset`：沿 `base_link` 竖直向下额外偏移。
 
-两者默认 0（保持上述规格），实际使用建议 `--gripper-forward-offset 0.10`。
+两者已按目视对齐结果设为默认：**`--gripper-forward-offset 0.10`、`--gripper-down-offset -0.03`**
+（负值 = 抬离桌面 3 cm，使长边不蹭到台面）。传 0 可回到纯 7 cm 规格。
+
+> 覆盖率指标（29.1% → 26.6%）在抬高 3 cm 后略降，但该指标的选区必然混入手臂与场景体素，
+> 不足以推翻目视对齐；此处以操作者在 GLB 中的判断为准。
 
 "下俯 45°" 提供两种锚定，可用 `--gripper-anchor` 选择：
 
@@ -342,9 +346,9 @@ PYTHONPATH=Avoid python Avoid/scripts/fuse_depth_and_map.py \
 
 | Snapshot | 融合 | 遮挡补齐(0.50) | 未覆盖(0.35) | 吸附丢弃 | **自由空间剔除** |
 |---|---:|---:|---:|---:|---:|
-| `040817_0003` | 14,978 | 4,679 | 818 | 11,510 | **307** |
-| `040844_0004` | 12,365 | 2,779 | 394 | 13,634 | **234** |
-| `040911_0005` | 12,572 | 2,543 | 356 | 14,380 | **239** |
+| `040817_0003` | 15,006 | 4,720 | 822 | 11,496 | **345** |
+| `040844_0004` | 12,371 | 2,821 | 412 | 13,613 | **260** |
+| `040911_0005` | 12,600 | 2,579 | 368 | 14,382 | **271** |
 
 输出 `fused_voxels.npz` 增加 `depth_evidence_state` / `depth_evidence_state_names`，
 `conf` 字段承载真实置信度（1.00 / 0.50 / 0.35），`reconstruction_method` 记为
@@ -364,7 +368,9 @@ PYTHONPATH=Avoid python Avoid/scripts/fuse_depth_and_map.py \
   --root 7.24Exp \
   --pipeline MapAnythingPipeline \
   --urdf G2_parameters/G2_t2_crs_omnipicker/urdf/G2_t2_crs_omnipicker.urdf \
-  --gripper-forward-offset 0.10 --tint-strength 0.85
+  --tint-strength 0.85
 ```
+
+夹爪偏移已是默认值，无需显式传参。
 
 `--sensor-dir` 指向含 `intrinsic_head_front_depth.json` 的目录（默认 `G2_parameters/sensor`）。

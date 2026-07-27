@@ -50,6 +50,12 @@ DEFAULT_PITCH_DEG = 45.0           # below the camera forward axis
 # long edge is rotated a quarter turn about the width axis, toward the table.
 # Without this the box sits perpendicular to the real gripper.
 DEFAULT_LONG_AXIS_ROTATION_DEG = 90.0
+# Fine placement settled by looking at the box against the reconstructed hand:
+# the wrist camera looks down the gripper, so pushing along its optical axis
+# moves the box forward and (in world terms) down onto the hand, then it is
+# lifted slightly so the long edge clears the table.
+DEFAULT_FORWARD_OFFSET_M = 0.10
+DEFAULT_DOWN_OFFSET_M = -0.03      # negative = away from the table
 ANCHORS = ("optical", "world")
 
 
@@ -141,7 +147,8 @@ def gripper_box(base_T_camera: np.ndarray, side: str, *, anchor: str = "optical"
                 height_m: float = DEFAULT_HEIGHT_M,
                 pitch_deg: float = DEFAULT_PITCH_DEG,
                 long_axis_rotation_deg: float = DEFAULT_LONG_AXIS_ROTATION_DEG,
-                forward_offset_m: float = 0.0, down_offset_m: float = 0.0,
+                forward_offset_m: float = DEFAULT_FORWARD_OFFSET_M,
+                down_offset_m: float = DEFAULT_DOWN_OFFSET_M,
                 margin_m: float = 0.0) -> GripperBox:
     """Build the removal box for one wrist camera.
 

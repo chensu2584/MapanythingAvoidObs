@@ -7,6 +7,8 @@ import pytest
 
 from avoidance.gripper_volume import (
     DEFAULT_CENTRE_DISTANCE_M,
+    DEFAULT_DOWN_OFFSET_M,
+    DEFAULT_FORWARD_OFFSET_M,
     DEFAULT_HEIGHT_M,
     DEFAULT_LENGTH_M,
     DEFAULT_WIDTH_M,
@@ -54,11 +56,22 @@ def test_anchors_differ_when_camera_is_rolled():
 
 def test_box_centre_sits_at_centre_distance_along_direction():
     pose = camera_pose(position=(0.5, 0.2, 1.1))
-    box = gripper_box(pose, "left")
+    box = gripper_box(pose, "left", forward_offset_m=0.0, down_offset_m=0.0)
     offset = box.centre_m - box.camera_centre_m
     # the 7 cm is camera -> box CENTRE (not to the near face)
     assert np.isclose(np.linalg.norm(offset), DEFAULT_CENTRE_DISTANCE_M)
     assert np.allclose(offset / np.linalg.norm(offset), box.direction)
+
+
+def test_default_offsets_push_the_box_forward_and_off_the_table():
+    """The shipped defaults sit the box on the hand, lifted clear of the table."""
+    pose = camera_pose(position=(0.5, 0.2, 1.1))
+    plain = gripper_box(pose, "left", forward_offset_m=0.0, down_offset_m=0.0)
+    shipped = gripper_box(pose, "left")
+    shift = shipped.centre_m - plain.centre_m
+    assert np.isclose(shift @ pose[:3, 2], DEFAULT_FORWARD_OFFSET_M)   # along optical axis
+    assert np.isclose(shift[2], -DEFAULT_DOWN_OFFSET_M)                # lifted, not lowered
+    assert DEFAULT_DOWN_OFFSET_M < 0
 
 
 def test_box_dimensions_and_extent_along_axis():

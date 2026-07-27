@@ -41,7 +41,8 @@ def test_gripper_box_carves_its_volume():
     pose = np.eye(4)
     pose[:3, 0], pose[:3, 1], pose[:3, 2] = (0, 1, 0), (0, 0, -1), (1, 0, 0)
     pose[:3, 3] = (0.5, 0.0, 0.75)          # above the slab, looking down-forward
-    box = gripper_box(pose, "left")
+    # placement offsets are tuned for the real hand; this test is about carving
+    box = gripper_box(pose, "left", forward_offset_m=0.0, down_offset_m=0.0)
     plain = clean_cloud(pts, cols, min_cluster=1)
     carved = clean_cloud(pts, cols, gripper_boxes=[box], min_cluster=1)
     assert len(carved.points_m) < len(plain.points_m)

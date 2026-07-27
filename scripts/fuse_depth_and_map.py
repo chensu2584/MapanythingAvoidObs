@@ -47,6 +47,18 @@ from avoidance.depth_fusion import (  # noqa: E402
     load_voxel_cloud,
     save_fused,
 )
+from avoidance.gripper_volume import (  # noqa: E402
+    ANCHORS,
+    DEFAULT_CENTRE_DISTANCE_M,
+    DEFAULT_DOWN_OFFSET_M,
+    DEFAULT_FORWARD_OFFSET_M,
+    DEFAULT_HEIGHT_M,
+    DEFAULT_LENGTH_M,
+    DEFAULT_PITCH_DEG,
+    DEFAULT_WIDTH_M,
+    gripper_boxes,
+    remove_gripper_voxels,
+)
 from avoidance.occupancy_fusion import (  # noqa: E402
     DEFAULT_SURFACE_TOLERANCE_M,
     DepthView,
@@ -88,17 +100,6 @@ def head_depth_view(root: Path, snapshot: str, args) -> DepthView | None:
     return DepthView(depth_m=depth, K=K,
                      base_T_camera=np.asarray(entry["matrix"], dtype=float),
                      max_depth_m=args.max_depth, name="head")
-from avoidance.gripper_volume import (  # noqa: E402
-    ANCHORS,
-    DEFAULT_CENTRE_DISTANCE_M,
-    DEFAULT_HEIGHT_M,
-    DEFAULT_LENGTH_M,
-    DEFAULT_PITCH_DEG,
-    DEFAULT_WIDTH_M,
-    gripper_boxes,
-    remove_gripper_voxels,
-)
-
 WRIST_KEYS = ("hand_left_rgb", "hand_right_rgb")
 
 # Provenance tinting for the viewer: truth reads green, model fill reads amber.
@@ -338,9 +339,11 @@ def main() -> int:
     parser.add_argument("--gripper-width", type=float, default=DEFAULT_WIDTH_M)
     parser.add_argument("--gripper-height", type=float, default=DEFAULT_HEIGHT_M)
     parser.add_argument("--gripper-pitch", type=float, default=DEFAULT_PITCH_DEG)
-    parser.add_argument("--gripper-forward-offset", type=float, default=0.0,
+    parser.add_argument("--gripper-forward-offset", type=float,
+                        default=DEFAULT_FORWARD_OFFSET_M,
                         help="extra shift along the wrist camera's optical axis, metres")
-    parser.add_argument("--gripper-down-offset", type=float, default=0.0,
+    parser.add_argument("--gripper-down-offset", type=float,
+                        default=DEFAULT_DOWN_OFFSET_M,
                         help="extra shift straight down in base_link, metres")
     parser.add_argument("--gripper-long-axis-rotation", type=float, default=None,
                         help="quarter-turn of the long edge toward the table, degrees (default 90)")
