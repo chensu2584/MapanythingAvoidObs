@@ -173,6 +173,17 @@ def save_fused(result: FusionResult, path: str | Path) -> Path:
     indices = _quantise(result.points_m, voxel_size)
     origin = indices.min(axis=0) * voxel_size - 0.5 * voxel_size
     rebased = np.rint((result.points_m - origin) / voxel_size - 0.5).astype(np.int32)
+    # Occupancy fusion grades its voxels; surface-only fusion has just the two
+    # levels, so fall back to those rather than inventing a confidence.
+    confidence = getattr(result, "confidence", None)
+    if confidence is None:
+        confidence = np.where(result.depth_mask, 1.0, 0.5)
+    extra = {}
+    state = getattr(result, "state", None)
+    if state is not None:
+        extra["depth_evidence_state"] = state
+        extra["depth_evidence_state_names"] = np.asarray(
+            ["unseen", "free", "occupied", "occluded"])
     np.savez_compressed(
         path,
         indices=rebased,
@@ -181,11 +192,13 @@ def save_fused(result: FusionResult, path: str | Path) -> Path:
         dims=(rebased.max(axis=0) + 1).astype(np.int32),
         colors=result.colors,
         counts=np.ones(len(result.points_m), dtype=np.int32),
-        conf=np.where(result.depth_mask, 1.0, 0.5).astype(np.float32),
+        conf=np.asarray(confidence, dtype=np.float32),
         provenance=result.provenance,
         provenance_names=np.asarray(["depth", "map"]),
         world_frame=np.asarray(result.report.get("world_frame", "base_link")),
         translation_unit=np.asarray("meter"),
-        reconstruction_method=np.asarray("depth_first_fusion_map_fills_holes"),
+        reconstruction_method=np.asarray(
+            result.report.get("policy", "depth_first_fusion_map_fills_holes")),
+        **extra,
     )
     return path

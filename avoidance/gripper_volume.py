@@ -45,6 +45,11 @@ DEFAULT_LENGTH_M = 0.15            # mount -> fingertip, along the gripper axis
 DEFAULT_WIDTH_M = 0.10             # across the fingers
 DEFAULT_HEIGHT_M = 0.06            # thickness
 DEFAULT_PITCH_DEG = 45.0           # below the camera forward axis
+# The 45-deg direction locates the gripper, but the 15 cm length does not run
+# along it: the operator measured the block lying across that direction, so the
+# long edge is rotated a quarter turn about the width axis, toward the table.
+# Without this the box sits perpendicular to the real gripper.
+DEFAULT_LONG_AXIS_ROTATION_DEG = 90.0
 ANCHORS = ("optical", "world")
 
 
@@ -135,9 +140,15 @@ def gripper_box(base_T_camera: np.ndarray, side: str, *, anchor: str = "optical"
                 length_m: float = DEFAULT_LENGTH_M, width_m: float = DEFAULT_WIDTH_M,
                 height_m: float = DEFAULT_HEIGHT_M,
                 pitch_deg: float = DEFAULT_PITCH_DEG,
+                long_axis_rotation_deg: float = DEFAULT_LONG_AXIS_ROTATION_DEG,
+                forward_offset_m: float = 0.0, down_offset_m: float = 0.0,
                 margin_m: float = 0.0) -> GripperBox:
     """Build the removal box for one wrist camera.
 
+    The box CENTRE is placed ``centre_distance_m`` from the camera along the
+    45-deg gripper direction.  ``long_axis_rotation_deg`` then turns the long
+    edge about the width axis: +90 deg swings it from "down along the direction"
+    to lying toward the table, which is how the gripper is actually mounted.
     ``margin_m`` grows the box on every side; use it to be deliberately
     conservative about deleting the robot's own hand.
     """
@@ -147,7 +158,27 @@ def gripper_box(base_T_camera: np.ndarray, side: str, *, anchor: str = "optical"
     direction, hint = gripper_direction(pose, anchor=anchor, pitch_deg=pitch_deg)
     camera_centre = pose[:3, 3]
     centre = camera_centre + direction * centre_distance_m
+    # Fine placement on top of the measured 7 cm: the wrist camera looks down the
+    # gripper, so pushing along its optical axis moves the box both forward and
+    # (in world terms) down, which is how the box is aligned onto the real hand.
+    if forward_offset_m:
+        centre = centre + pose[:3, 2] * forward_offset_m
+    if down_offset_m:
+        centre = centre + np.array([0.0, 0.0, -1.0]) * down_offset_m
     axes = _orthonormal_basis(direction, hint)
+    if long_axis_rotation_deg:
+        angle = np.radians(long_axis_rotation_deg)
+        length_axis, width_axis = axes[:, 0], axes[:, 1]
+        perpendicular = np.cross(width_axis, length_axis)
+        candidates = [np.cos(angle) * length_axis + sign * np.sin(angle) * perpendicular
+                      for sign in (1.0, -1.0)]
+        # "Toward the table" cannot be a fixed sign: which way the quarter turn
+        # tips depends on the wrist roll, and the same sign that swings down for
+        # one camera swings up for another.  Pick the candidate that ends up
+        # lower in the world, i.e. leaning toward the table rather than the air.
+        rotated = min(candidates, key=lambda axis: axis[2] / np.linalg.norm(axis))
+        rotated = rotated / np.linalg.norm(rotated)
+        axes = np.column_stack((rotated, width_axis, np.cross(rotated, width_axis)))
     size = np.array([length_m, width_m, height_m], dtype=np.float64) + 2 * margin_m
     return GripperBox(side, anchor, centre, axes, size, camera_centre, direction)
 

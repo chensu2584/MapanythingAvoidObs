@@ -161,7 +161,21 @@ conda run --no-capture-output -n MAP \
 
 - 盒**中心**距相机中心 `7 cm`（即 15 cm 长度以此为中点，前后各 7.5 cm；宽度同理）；
 - 长 `15 cm`（安装部位→夹爪尖）、宽 `10 cm`、高 `6 cm`；
-- 方向为相机前向下俯 `45°`。
+- 方向为相机前向下俯 `45°`；
+- **长边绕宽度轴转 90°倒向桌面**（`--gripper-long-axis-rotation`，默认 90）。
+  未加这一步时长边沿 45°方向，整个盒子与真实夹爪垂直。
+  注意"朝桌面"**不能用固定符号**：同一符号在不同手腕 roll 下会朝上，
+  因此实现按世界 Z 自动选更低的一侧（有 4 组不同 roll 的回归测试）。
+
+实测标定（0003 帧，排除桌面后统计腕相机近处体素）：真实夹爪质心在
+**相机前方约 0.19 m**（左 0.184 m、右 0.209 m），相机系俯角仅 −22°~+6°，
+即几乎沿光轴；世界系下方 0.14–0.20 m。腕相机本身朝下，故沿光轴前移即同时"往前、往下"。
+仅按 7 cm 放置时盒心偏离质心 16–17 cm，因此提供微调：
+
+- `--gripper-forward-offset`：沿腕相机光轴额外前移（对近相机体素覆盖率在 **0.08–0.10 m** 处见顶）；
+- `--gripper-down-offset`：沿 `base_link` 竖直向下额外偏移。
+
+两者默认 0（保持上述规格），实际使用建议 `--gripper-forward-offset 0.10`。
 
 "下俯 45°" 提供两种锚定，可用 `--gripper-anchor` 选择：
 
@@ -294,3 +308,63 @@ PYTHONPATH=Avoid python Avoid/scripts/fuse_depth_and_map.py \
 `--urdf` 用于法兰标记；本机目录结构与 `g2_glb_markers.DEFAULT_URDF` 假设的
 `../G2/G2_parameters/...` 不同，故需显式指定。标记生成失败不会影响融合本身，
 `fusion_report.json` 的 `outputs.glb_error` 会记录原因。`--no-glb` 可跳过导出。
+
+## 方法三：置信度加权占据融合（默认）
+
+模块：`avoidance/occupancy_fusion.py`，`--method occupancy`（默认；`--method surface`
+回到旧的仅表面距离规则）。
+
+### 为什么需要它
+
+仅按表面距离融合只用了深度的**表面点**，丢掉了更强的证据：每个有效深度像素不仅说
+"这里有表面"，还说"相机到该表面之间是空的"。实测 7.24Exp 三帧，旧规则采纳的补齐体素里
+**7–10%（每帧 341–471 个）落在深度相机明明看穿的空间内**，是可证伪的幻觉；
+它们离任何真实表面都远，所以任何吸附阈值都拦不住。
+
+### 三态占据 + 分级仲裁
+
+把候选体素投影回深度图，按与实测深度的前后关系分类：
+
+| 状态 | 判据 | 处理 |
+|---|---|---|
+| `occupied` | 距实测表面 ≤ `--surface-tolerance`（默认 4 cm） | 深度点保留，`conf=1.00` |
+| `free` | 比实测表面更靠近相机 | **删除**（相机看穿了，可证伪） |
+| `occluded` | 在实测表面之后 | 采纳，`conf=0.50`（合法的遮挡补齐） |
+| `unseen` | 深度图外或无返回 | 采纳，`conf=0.35`（无法验证，最低信任） |
+
+多视图合并按证据强度：`occupied > free > occluded > unseen`——任一相机看穿即为空。
+另保留吸附规则：贴近深度表面的 map 体素仍视为同一表面而丢弃。
+
+规划器应按 `conf` 分级膨胀（如 1.00→8 cm、0.50→12 cm、0.35→15 cm），
+而不是把所有体素同等对待。
+
+`7.24Exp` 实测（`--gripper-forward-offset 0.10`）：
+
+| Snapshot | 融合 | 遮挡补齐(0.50) | 未覆盖(0.35) | 吸附丢弃 | **自由空间剔除** |
+|---|---:|---:|---:|---:|---:|
+| `040817_0003` | 14,978 | 4,679 | 818 | 11,510 | **307** |
+| `040844_0004` | 12,365 | 2,779 | 394 | 13,634 | **234** |
+| `040911_0005` | 12,572 | 2,543 | 356 | 14,380 | **239** |
+
+输出 `fused_voxels.npz` 增加 `depth_evidence_state` / `depth_evidence_state_names`，
+`conf` 字段承载真实置信度（1.00 / 0.50 / 0.35），`reconstruction_method` 记为
+`confidence_weighted_occupancy_fusion`。
+
+### 已知边界
+
+- 本机器人只有头部深度相机，因此 `unseen` 的那部分（每帧数百个）无法验证。
+  **采到手部深度图后，同一套三态场可直接加入 `DepthView` 列表**，无需改策略——
+  这是继续提升融合质量最直接的一步。
+- `free` 判据用 4 cm 容差，是为了吸收深度噪声与 1 cm 体素量化；调小会更激进地删除。
+
+用法：
+
+```bash
+PYTHONPATH=Avoid python Avoid/scripts/fuse_depth_and_map.py \
+  --root 7.24Exp \
+  --pipeline MapAnythingPipeline \
+  --urdf G2_parameters/G2_t2_crs_omnipicker/urdf/G2_t2_crs_omnipicker.urdf \
+  --gripper-forward-offset 0.10 --tint-strength 0.85
+```
+
+`--sensor-dir` 指向含 `intrinsic_head_front_depth.json` 的目录（默认 `G2_parameters/sensor`）。

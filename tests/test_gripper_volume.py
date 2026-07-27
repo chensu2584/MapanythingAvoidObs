@@ -64,10 +64,41 @@ def test_box_centre_sits_at_centre_distance_along_direction():
 def test_box_dimensions_and_extent_along_axis():
     box = gripper_box(camera_pose(), "left")
     assert np.allclose(box.size_m, [DEFAULT_LENGTH_M, DEFAULT_WIDTH_M, DEFAULT_HEIGHT_M])
-    # length is centred on the box centre: reaches 7.5 cm either way
-    tip = box.centre_m + box.direction * DEFAULT_LENGTH_M / 2
-    heel = box.centre_m - box.direction * DEFAULT_LENGTH_M / 2
-    assert box.contains(np.stack([tip, heel]) - np.stack([box.direction, -box.direction]) * 1e-4).all()
+    # the length runs along the box's long axis (rotated off `direction`), and is
+    # centred on the box centre: it reaches 7.5 cm either way
+    long_axis = box.axes[:, 0]
+    tip = box.centre_m + long_axis * (DEFAULT_LENGTH_M / 2 - 1e-4)
+    heel = box.centre_m - long_axis * (DEFAULT_LENGTH_M / 2 - 1e-4)
+    assert box.contains(np.stack([tip, heel])).all()
+    just_past = box.centre_m + long_axis * (DEFAULT_LENGTH_M / 2 + 1e-3)
+    assert not box.contains(just_past[None])[0]
+
+
+def test_long_axis_is_rotated_a_quarter_turn_off_the_direction():
+    """The 15 cm edge lies across the 45-deg direction, not along it."""
+    box = gripper_box(camera_pose(), "left")
+    assert abs(float(box.axes[:, 0] @ box.direction)) < 1e-9
+    # the un-rotated variant keeps the old behaviour
+    plain = gripper_box(camera_pose(), "left", long_axis_rotation_deg=0.0)
+    assert np.allclose(plain.axes[:, 0], plain.direction)
+
+
+def test_rotation_never_tips_the_long_edge_upward():
+    """The quarter turn must lean toward the table whatever the wrist roll.
+
+    Which sign swings downward depends on the camera's roll, so a fixed sign
+    would point the box into the air for some poses; the chosen candidate must
+    always be the lower one.
+    """
+    poses = [
+        camera_pose(),
+        camera_pose(forward=(1.0, 0.0, 0.0), down=(0.0, -1.0, -1.0)),   # rolled
+        camera_pose(forward=(0.0, 1.0, -0.3), down=(0.0, 0.3, 1.0)),    # rolled the other way
+        camera_pose(forward=(-1.0, 0.5, -0.2), down=(0.2, 0.4, -1.0)),
+    ]
+    for pose in poses:
+        box = gripper_box(pose, "left")
+        assert box.axes[:, 0][2] <= 1e-9, "long edge points up instead of toward the table"
 
 
 def test_axes_are_orthonormal_right_handed():

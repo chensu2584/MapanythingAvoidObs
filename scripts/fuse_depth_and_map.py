@@ -47,6 +47,11 @@ from avoidance.depth_fusion import (  # noqa: E402
     load_voxel_cloud,
     save_fused,
 )
+from avoidance.occupancy_fusion import (  # noqa: E402
+    DEFAULT_SURFACE_TOLERANCE_M,
+    DepthView,
+    fuse_with_occupancy,
+)
 from avoidance.voxel_cleanup import (  # noqa: E402
     DEFAULT_CLUSTER_EPS_M,
     DEFAULT_MIN_CLUSTER,
@@ -54,6 +59,35 @@ from avoidance.voxel_cleanup import (  # noqa: E402
     DEFAULT_TABLE_XY_BOUNDS,
     clean_cloud,
 )
+
+DEPTH_INTRINSICS = "intrinsic_head_front_depth.json"
+
+
+def head_depth_view(root: Path, snapshot: str, args) -> DepthView | None:
+    """Load the head depth image as a free-space evidence source."""
+    import cv2
+
+    image_path = root / args.input_dirname / snapshot / "head_depth_raw16.png"
+    extrinsics_path = root / args.input_dirname / snapshot / "camera_extrinsics.json"
+    intrinsics_path = Path(args.sensor_dir).expanduser() / DEPTH_INTRINSICS
+    if not (image_path.is_file() and intrinsics_path.is_file()):
+        return None
+    raw = cv2.imread(str(image_path), cv2.IMREAD_UNCHANGED)
+    if raw is None:
+        return None
+    depth = raw.astype(np.float32) * args.raw_depth_scale
+    depth[(raw == 0) | (raw == 65535)] = 0.0          # sentinel values carry no return
+    calibration = read_json(intrinsics_path)
+    K = np.array([[calibration["Fx"], 0.0, calibration["Cx"]],
+                  [0.0, calibration["Fy"], calibration["Cy"]],
+                  [0.0, 0.0, 1.0]], dtype=float)
+    extrinsics = read_json(extrinsics_path).get("extrinsics", {})
+    entry = extrinsics.get("head_depth") or extrinsics.get("head_rgb")
+    if not isinstance(entry, dict) or "matrix" not in entry:
+        return None
+    return DepthView(depth_m=depth, K=K,
+                     base_T_camera=np.asarray(entry["matrix"], dtype=float),
+                     max_depth_m=args.max_depth, name="head")
 from avoidance.gripper_volume import (  # noqa: E402
     ANCHORS,
     DEFAULT_CENTRE_DISTANCE_M,
@@ -163,11 +197,16 @@ def process(root: Path, snapshot: str, args, pipeline) -> dict:
         if not path.is_file():
             raise AvoidanceError(f"missing input: {path}")
 
-    boxes = gripper_boxes(wrist_poses(extrinsics), anchor=args.gripper_anchor,
+    gripper_kwargs = dict(anchor=args.gripper_anchor,
                           centre_distance_m=args.gripper_centre_distance,
                           length_m=args.gripper_length, width_m=args.gripper_width,
                           height_m=args.gripper_height, pitch_deg=args.gripper_pitch,
+                          forward_offset_m=args.gripper_forward_offset,
+                          down_offset_m=args.gripper_down_offset,
                           margin_m=args.gripper_margin)
+    if args.gripper_long_axis_rotation is not None:
+        gripper_kwargs["long_axis_rotation_deg"] = args.gripper_long_axis_rotation
+    boxes = gripper_boxes(wrist_poses(extrinsics), **gripper_kwargs)
     depth_points, depth_colors, depth_vs, depth_frame = load_voxel_cloud(depth_npz)
     map_points, map_colors, map_vs, map_frame = load_voxel_cloud(map_npz)
     if depth_frame != map_frame:
@@ -189,13 +228,24 @@ def process(root: Path, snapshot: str, args, pipeline) -> dict:
             raise AvoidanceError(
                 f"cleanup removed every voxel from the {cleaned.report['label']} cloud")
 
-    result = fuse(depth_clean.points_m, depth_clean.colors,
-                  map_clean.points_m, map_clean.colors,
-                  voxel_size_m=float(depth_vs), snap_distance_m=args.snap_distance,
-                  metadata={"world_frame": depth_frame,
-                            "depth_source": str(depth_npz.resolve()),
-                            "map_source": str(map_npz.resolve()),
-                            "inputs_were_cleaned": True})
+    shared = {"world_frame": depth_frame, "depth_source": str(depth_npz.resolve()),
+              "map_source": str(map_npz.resolve()), "inputs_were_cleaned": True}
+    if args.method == "occupancy":
+        view = head_depth_view(root, snapshot, args)
+        if view is None:
+            raise AvoidanceError(
+                f"--method occupancy needs {snapshot}'s head_depth_raw16.png and "
+                f"{DEPTH_INTRINSICS} under --sensor-dir")
+        result = fuse_with_occupancy(
+            depth_clean.points_m, depth_clean.colors,
+            map_clean.points_m, map_clean.colors, views=[view],
+            voxel_size_m=float(depth_vs), snap_distance_m=args.snap_distance,
+            surface_tolerance_m=args.surface_tolerance, metadata=shared)
+    else:
+        result = fuse(depth_clean.points_m, depth_clean.colors,
+                      map_clean.points_m, map_clean.colors,
+                      voxel_size_m=float(depth_vs), snap_distance_m=args.snap_distance,
+                      metadata=shared)
     out_dir = (args.out_root or root / "fused") / snapshot
     fused_path = save_fused(result, out_dir / "fused_voxels.npz")
 
@@ -253,6 +303,17 @@ def main() -> int:
     parser.add_argument("--depth-filename", default="direct_depth_voxels.npz")
     parser.add_argument("--map-filename", default="voxels.npz")
     parser.add_argument("--input-dirname", default="in")
+    parser.add_argument("--method", choices=("occupancy", "surface"), default="occupancy",
+                        help="occupancy: use depth free-space evidence and grade confidence "
+                             "(default); surface: the older surface-distance rule only")
+    parser.add_argument("--surface-tolerance", type=float, default=DEFAULT_SURFACE_TOLERANCE_M,
+                        help="band around the measured surface counted as occupied, metres")
+    parser.add_argument("--sensor-dir", default="G2_parameters/sensor",
+                        help="folder holding intrinsic_head_front_depth.json")
+    parser.add_argument("--raw-depth-scale", type=float, default=0.001,
+                        help="uint16 depth -> metres (G2 stores millimetres)")
+    parser.add_argument("--max-depth", type=float, default=3.0,
+                        help="ignore depth returns beyond this, metres")
     parser.add_argument("--snap-distance", type=float, default=DEFAULT_SNAP_DISTANCE_M,
                         help="map voxels closer than this to depth are dropped as duplicates")
     parser.add_argument("--pipeline", default=None,
@@ -277,6 +338,12 @@ def main() -> int:
     parser.add_argument("--gripper-width", type=float, default=DEFAULT_WIDTH_M)
     parser.add_argument("--gripper-height", type=float, default=DEFAULT_HEIGHT_M)
     parser.add_argument("--gripper-pitch", type=float, default=DEFAULT_PITCH_DEG)
+    parser.add_argument("--gripper-forward-offset", type=float, default=0.0,
+                        help="extra shift along the wrist camera's optical axis, metres")
+    parser.add_argument("--gripper-down-offset", type=float, default=0.0,
+                        help="extra shift straight down in base_link, metres")
+    parser.add_argument("--gripper-long-axis-rotation", type=float, default=None,
+                        help="quarter-turn of the long edge toward the table, degrees (default 90)")
     parser.add_argument("--gripper-margin", type=float, default=0.02,
                         help="grow the gripper box on every side, metres")
     parser.add_argument("--no-glb", action="store_true", help="skip the viewer GLB")
@@ -306,9 +373,16 @@ def main() -> int:
             print(f"{snapshot}:")
             print(f"    cleaned depth {depth_stages['input']} -> {report['depth_voxels']}, "
                   f"map {map_stages['input']} -> {report['map_voxels']}")
-            print(f"    fused {report['fused_voxels']} "
-                  f"(map fill {report['map_voxels_admitted_as_fill']}, "
-                  f"snapped {report['map_voxels_snapped_to_depth']})")
+            if args.method == "occupancy":
+                print(f"    fused {report['fused_voxels']} "
+                      f"(fill: occluded {report['map_admitted_occluded']} + "
+                      f"unseen {report['map_admitted_unseen']}, "
+                      f"snapped {report['map_snapped_to_depth']}, "
+                      f"REJECTED in free space {report['map_rejected_in_observed_free_space']})")
+            else:
+                print(f"    fused {report['fused_voxels']} "
+                      f"(map fill {report['map_voxels_admitted_as_fill']}, "
+                      f"snapped {report['map_voxels_snapped_to_depth']})")
             if report["outputs"]["fused_glb"]:
                 print(f"    glb: {report['outputs']['fused_glb']}")
             elif report["outputs"]["glb_error"]:
