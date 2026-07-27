@@ -1,8 +1,6 @@
 import importlib.util
 import unittest
 from pathlib import Path
-import numpy as np
-from avoidance.contracts import AvoidanceError
 from avoidance.g2_robot_model import G2RobotModel, load_g2_capture_state
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,7 +26,17 @@ class PlannerTests(unittest.TestCase):
         result=plan_g2_avoidance(scene_path=SNAPSHOT,capture_state_path=SNAPSHOT/"capture_state.json",side="left",goal_arm=goal,arm_body_demo=True)
         self.assertEqual(result["status"],"demo_planned");self.assertFalse(result["execution_authorized"])
         self.assertTrue(all(x.startswith("gripper_") for x in result["collision_policy"]["ignored_collision_geometries"]))
-    def test_demo_rejects_tcp_goal(self):
+    def test_demo_tracks_cartesian_goal_with_flange(self):
         from avoidance.planner import plan_g2_avoidance
-        with self.assertRaises(AvoidanceError):
-            plan_g2_avoidance(scene_path=SNAPSHOT,capture_state_path=SNAPSHOT/"capture_state.json",side="left",goal_pose=np.eye(4),arm_body_demo=True)
+        flange_pose = self.robot.frame_pose(self.q, "arm_l_end_link")
+        result = plan_g2_avoidance(
+            scene_path=SNAPSHOT,
+            capture_state_path=SNAPSHOT/"capture_state.json",
+            side="left",
+            goal_pose=flange_pose,
+            arm_body_demo=True,
+        )
+        self.assertEqual(result["status"], "demo_planned")
+        self.assertEqual(result["goal"]["type"], "flange_pose")
+        self.assertEqual(result["goal"]["frame"], "arm_l_end_link")
+        self.assertFalse(result["execution_authorized"])

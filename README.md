@@ -11,6 +11,34 @@ G1 已实现早期实验的前两阶段：夹爪 TCP 位姿/标定报告，以�
 明确延后，不能把紫色/黄色提示当作已批准删除。完整实现与验证记录见
 [`WORK_LOG.md`](WORK_LOG.md)。
 
+## G2 数据采集与直接深度重建
+
+G2 采集、直接深度体素化和 GLB 机器人标记代码统一由 Avoid 仓库维护，采集数据仍写入工作区
+兄弟目录 `G2`：
+
+- `scripts/g2_capture_gui.py`：头部/左右手相机预览与 snapshot GUI；
+- `scripts/g2_capture_session.py`：G2 采集 CLI、外参与 FK 校验后端；
+- `scripts/reconstruct_depth_voxels.py`：原始或注册深度反投影与体素 GLB；
+- `scripts/g2_glb_markers.py`：共享相机、法兰、简约左右手与 `base_link` 原点标记。
+
+采集 GUI：
+
+```bash
+cd /home/ck/MapAnythingTest
+python Avoid/scripts/g2_capture_gui.py
+```
+
+直接深度体素重建：
+
+```bash
+conda run --no-capture-output -n MAP \
+  python Avoid/scripts/reconstruct_depth_voxels.py \
+  --input G2/3box/undistorted
+```
+
+完整输入格式、输出、桌面裁剪、直接深度场景简化与逐帧统计见
+[`DEPTH_VOXEL_RECONSTRUCTION.md`](DEPTH_VOXEL_RECONSTRUCTION.md)。
+
 ## G2 聚类场景：规划输入准备
 
 `G2/expoutput3/snapshot_*/obstacles.json` 已能作为保守环境几何层使用。规划侧入口位于

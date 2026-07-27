@@ -239,3 +239,42 @@ conda run -n MAP python Avoid/scripts/review_self_filter.py \
   过包围风险。后续需增加覆盖率、过包围率、组件映射、跨帧稳定性和机器人重叠报告。
 - 完整方案与验收条件见
   `G2_DANGER_START_AND_VALIDATION_PLAN.md`。
+
+## 2026-07-27：3box 派生 GLB 机器人标记
+
+- 新增共享模块 `scripts/g2_glb_markers.py`，以 snapshot 相机位姿显示头部/左右手部相机，
+  并以关节状态和 G2 URDF FK 显示左右 `arm_*_end_link` 法兰。
+- `cleaned_voxels.glb`、`obstacles.glb` 和 `direct_depth_voxels.glb` 统一加入 `base_link`
+  原点、三处相机、两个法兰参考中心和简约双指左右手。
+- 简约手和 marker 均为 visualization-only；`obstacles.json` 的碰撞输入仍只读取 `boxes`。
+- “夹爪中心”不再冒充真实 TCP。URDF omnipicker 与实装夹爪不一致，左右手外形只是方向参考。
+- 保留 `scene.glb`、`scene_filtered*.glb` 和 `voxels.glb` 原始重建证据，不做原位覆写。
+- 当前体素去夹爪仍是左右手相机中心 `0.15 m` 固定球删除，下一步改为实装几何 + FK +
+  来源视图 + 深度一致性 + core/shell 人工复核。
+
+## 2026-07-27：直接深度体素批量场景简化
+
+- `scripts/simplify_g2_snapshots.py` 新增 `--voxel-filename`，可直接处理
+  `direct_depth_voxels.npz`。
+- direct-depth 输出通过 `direct_depth_manifest.json` 回溯标定相机位姿和关节状态，不复制或
+  猜测 snapshot 元数据。
+- 五帧均生成 `cleaned_voxels.glb`、`obstacles.glb` 和 `obstacles.json`，原始
+  `direct_depth_voxels.glb` 保留。
+- 五帧均检测到 1 个 support，object 数为 `3、2、3、2、2`；全部 GLB 标记、输出哈希和
+  planning-scene 契约通过。
+- 直接深度当前只有 head view；第三、第五帧比 MapAnything 简化各少一个 object，属于遮挡
+  条件下的深度证据不足，不能作为物体不存在的证明。
+
+## 2026-07-27：G2 脚本迁入 Avoid
+
+- 将 `g2_capture_gui.py`、`g2_capture_session.py`、`g2_glb_markers.py` 和
+  `reconstruct_depth_voxels.py` 从 `G2/scripts` 迁入 `Avoid/scripts`。
+- 将 `DEPTH_VOXEL_RECONSTRUCTION.md` 迁入 Avoid 根目录，更新全部运行命令和模块引用。
+- G2 参数、URDF、标定和采集输出仍位于工作区兄弟目录 `G2`；Avoid 仓库负责代码、规划和
+  文档版本控制。
+- `simplify_g2_snapshots.py` 改为直接导入同目录标记模块，不再通过 `G2/scripts` 修改
+  `sys.path`。
+- 迁移后重新生成五帧直接深度及简化结果，15 个 GLB 的哈希、标记和场景契约通过；原始
+  snapshot 的六相机外参离线复核最大误差为 `1.25e-16 m / 0 deg`。
+- 现有非 pytest 测试共 16 项通过；同步更新 G2 demo 测试，明确 Cartesian 位姿在 demo 中
+  跟踪法兰而非未知 TCP，结果仍固定不可执行。

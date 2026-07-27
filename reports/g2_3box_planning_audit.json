@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-27T04:19:34.364201+00:00",
+  "status": "passed",
+  "snapshot_count": 5,
+  "planning_inflation_m": 0.08,
+  "snapshots": [
+    {
+      "snapshot": "snapshot_20260724_040712_0001",
+      "valid": true,
+      "primitive_count": 4,
+      "box_count": 4,
+      "cylinder_count": 0,
+      "marker_count": 6,
+      "scene_sha256": "b829142a8182b14864d6a5b9dd5396fbd1c87806b31fd712923243041aea35f5"
+    },
+    {
+      "snapshot": "snapshot_20260724_040725_0002",
+      "valid": true,
+      "primitive_count": 3,
+      "box_count": 3,
+      "cylinder_count": 0,
+      "marker_count": 6,
+      "scene_sha256": "f464083bc70818105b551b92eb5ea5db9d7727371a03836e24cf01f7007a6e45"
+    },
+    {
+      "snapshot": "snapshot_20260724_040817_0003",
+      "valid": true,
+      "primitive_count": 5,
+      "box_count": 5,
+      "cylinder_count": 0,
+      "marker_count": 6,
+      "scene_sha256": "654d14dabceee21950de4fccc7259ecf1860fc53624910922bc630333cdda495"
+    },
+    {
+      "snapshot": "snapshot_20260724_040844_0004",
+      "valid": true,
+      "primitive_count": 3,
+      "box_count": 3,
+      "cylinder_count": 0,
+      "marker_count": 6,
+      "scene_sha256": "2d58b5892bc8150db67802af8eb2f26d0a61c3ba270e31ca7658fbd5746dd1c9"
+    },
+    {
+      "snapshot": "snapshot_20260724_040911_0005",
+      "valid": true,
+      "primitive_count": 4,
+      "box_count": 4,
+      "cylinder_count": 0,
+      "marker_count": 6,
+      "scene_sha256": "61df77ee2b48c01a6ac602cb5c62ea895d9979e595c131d8ed36b3e77111cfe6"
+    }
+  ]
+}
