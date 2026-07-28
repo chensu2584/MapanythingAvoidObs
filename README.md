@@ -39,6 +39,27 @@ conda run --no-capture-output -n MAP \
 完整输入格式、输出、桌面裁剪、直接深度场景简化与逐帧统计见
 [`DEPTH_VOXEL_RECONSTRUCTION.md`](DEPTH_VOXEL_RECONSTRUCTION.md)。
 
+### G2 端到端三版本 GUI
+
+MapAnythingPipeline 仓库现提供从指定四相机采集脚本到三份最终重建的总 GUI：
+
+```bash
+cd /home/ck/MapAnythingTest/MapAnythingPipeline
+conda run --no-capture-output -n MAP python g2_full_pipeline_gui.py
+```
+
+GUI 调用 Avoid 的直接深度与融合脚本，最终在
+`<run>/versions/<snapshot>/` 生成 `depth_only_voxels.*`、`fused_voxels.*` 和
+`mapanything_only_voxels.*`。三份都经过同一人工标定桌面 XY 范围
+`X=[0.239,1.019] m`、`Y=[-0.694,0.706] m`、腕相机锚定夹爪代理盒删除、DBSCAN 和桌面下方
+裁剪。`map/` 与 `depth/` 下的文件是中间证据，不是该三版本最终契约。
+总 GUI 会复读三份 NPZ，并只在全部体素中心均位于所选边界内时写
+`<run>/three_version_validation.json`。
+
+最终 GLB 使用正常采集颜色、隐藏夹爪删除示意壳，并保留 `base_link` 原点、三处相机、两处
+法兰和简约左右手。完整参数与验证见
+[`../MapAnythingPipeline/G2_FULL_PIPELINE_GUI.md`](../MapAnythingPipeline/G2_FULL_PIPELINE_GUI.md)。
+
 ## G2 聚类场景：规划输入准备
 
 `G2/expoutput3/snapshot_*/obstacles.json` 已能作为保守环境几何层使用。规划侧入口位于

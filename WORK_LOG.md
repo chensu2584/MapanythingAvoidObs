@@ -278,3 +278,24 @@ conda run -n MAP python Avoid/scripts/review_self_filter.py \
   snapshot 的六相机外参离线复核最大误差为 `1.25e-16 m / 0 deg`。
 - 现有非 pytest 测试共 16 项通过；同步更新 G2 demo 测试，明确 Cartesian 位姿在 demo 中
   跟踪法兰而非未知 TCP，结果仍固定不可执行。
+
+## 2026-07-28：统一桌面裁剪的三版本输出
+
+- `scripts/fuse_depth_and_map.py` 从同一次 `clean_cloud()` 结果新增导出
+  `depth_only_voxels.{npz,glb}` 和 `mapanything_only_voxels.{npz,glb}`，并保留原
+  `fused_voxels.{npz,glb}` 路径。
+- 三份都使用相同人工桌面 XY 边界、腕相机锚定夹爪代理盒、DBSCAN 参数和桌面下方裁剪；
+  `fusion_report.json` 记录两路各阶段点数与三份 NPZ/GLB 路径。
+- 单源 NPZ 使用与融合输出相同的稀疏体素契约，分别记录
+  `cleaned_metric_depth_only` / `cleaned_mapanything_only`，不伪装成融合结果。
+- 三份 GLB 统一保留 `base_link` 原点、三处相机、两处法兰和简约左右手。单源版本始终使用
+  正常采集颜色；融合版本可调 tint。MapAnythingPipeline 总 GUI 固定
+  `--no-gripper-shell --tint-strength 0.0`。
+- `MapAnythingPipeline/g2_full_pipeline_gui.py` 已调用上述接口，从指定四相机采集脚本一路运行
+  到 `<run>/versions/<snapshot>/` 三份正式输出；中间 `map/` 和 `depth/` GLB 不视为统一裁剪
+  的规划输入。
+- 相关测试 32 项通过。真实 `snapshot_20260724_040712_0001` 冒烟得到 only 深度 9,709、
+  融合 17,592、only MapAnything 18,270 个体素；三份人工桌面 XY 越界均为 0，三份 GLB
+  均可复读并含完整标记。
+- 实机夹爪与 URDF omnipicker 仍不一致；去夹爪是操作者实测代理盒，视觉简约手和法兰不是
+  已标定 TCP。该更新不解除 G2 规划/执行门禁。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fuse direct-depth and MapAnything reconstructions into one planning cloud.
+"""Clean and export depth, fused and MapAnything planning clouds.
 
 Both inputs are first put through the same cleanup that
 ``simplify_g2_snapshots.py`` applies before fitting planning primitives --
@@ -8,8 +8,9 @@ the fused cloud is built from denoised, range-limited geometry rather than raw
 voxels.  Fusing raw clouds would carry background walls, floor and speckle into
 the result and then hand them to the planner.
 
-Depth is then the geometry truth; MapAnything only fills what the depth camera
-could not see.  Gripper voxels are carved with the operator-measured box
+The two cleaned source clouds are exported alongside the fusion.  Depth is the
+geometry truth in the fused version; MapAnything only fills what the depth
+camera could not see.  Gripper voxels are carved with the operator-measured box
 anchored to the wrist cameras (see :mod:`avoidance.gripper_volume`) -- not the
 URDF omnipicker, which is not the gripper installed on this robot.
 
@@ -43,6 +44,9 @@ if str(AVOID_ROOT) not in sys.path:
 from avoidance.contracts import AvoidanceError, read_json, write_json  # noqa: E402
 from avoidance.depth_fusion import (  # noqa: E402
     DEFAULT_SNAP_DISTANCE_M,
+    PROVENANCE_DEPTH,
+    PROVENANCE_MAP,
+    FusionResult,
     fuse,
     load_voxel_cloud,
     save_fused,
@@ -108,7 +112,7 @@ MAP_TINT = np.array([245, 150, 40], dtype=np.float64)
 
 
 def fused_glb(result, marker_document, *, tint_strength: float,
-              gripper_boxes_to_draw=()) -> "object":
+              gripper_boxes_to_draw=(), geometry_name="fused_voxels") -> "object":
     """Build the fused voxel GLB, matching the repo's viewer conventions.
 
     Same 180-degree X flip as ``reconstruct_depth_voxels.py`` and
@@ -136,7 +140,7 @@ def fused_glb(result, marker_document, *, tint_strength: float,
     mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi, [1, 0, 0]))
 
     scene = trimesh.Scene()
-    scene.add_geometry(mesh, geom_name="fused_voxels")
+    scene.add_geometry(mesh, geom_name=geometry_name)
     for box in gripper_boxes_to_draw:
         # wireframe-ish translucent shell showing what was carved out as gripper
         shell = trimesh.creation.box(extents=box.size_m)
@@ -148,6 +152,32 @@ def fused_glb(result, marker_document, *, tint_strength: float,
         shell.visual.vertex_colors = np.array([235, 60, 60, 90], dtype=np.uint8)
         scene.add_geometry(shell, geom_name=f"gripper_removal_{box.side}")
     return add_marker_geometry(scene, marker_document)
+
+
+def cleaned_source_result(cleaned, *, source: str, voxel_size_m: float,
+                          world_frame: str, source_path: Path) -> FusionResult:
+    """Wrap one cleaned source cloud in the common voxel export contract."""
+
+    if source not in ("depth", "map"):
+        raise ValueError(f"unknown cleaned source: {source}")
+    provenance_value = PROVENANCE_DEPTH if source == "depth" else PROVENANCE_MAP
+    policy = (
+        "cleaned_metric_depth_only"
+        if source == "depth"
+        else "cleaned_mapanything_only"
+    )
+    return FusionResult(
+        points_m=cleaned.points_m,
+        colors=cleaned.colors,
+        provenance=np.full(len(cleaned.points_m), provenance_value, dtype=np.int8),
+        voxel_size_m=float(voxel_size_m),
+        report={
+            "world_frame": world_frame,
+            "policy": policy,
+            "source": str(source_path.resolve()),
+            "cleanup": cleaned.report,
+        },
+    )
 
 
 def import_pipeline(explicit: str | None):
@@ -248,10 +278,28 @@ def process(root: Path, snapshot: str, args, pipeline) -> dict:
                       voxel_size_m=float(depth_vs), snap_distance_m=args.snap_distance,
                       metadata=shared)
     out_dir = (args.out_root or root / "fused") / snapshot
+    depth_only = cleaned_source_result(
+        depth_clean,
+        source="depth",
+        voxel_size_m=float(depth_vs),
+        world_frame=depth_frame,
+        source_path=depth_npz,
+    )
+    map_only = cleaned_source_result(
+        map_clean,
+        source="map",
+        voxel_size_m=float(map_vs),
+        world_frame=map_frame,
+        source_path=map_npz,
+    )
+    depth_only_path = save_fused(depth_only, out_dir / "depth_only_voxels.npz")
     fused_path = save_fused(result, out_dir / "fused_voxels.npz")
+    map_only_path = save_fused(map_only, out_dir / "mapanything_only_voxels.npz")
 
-    glb_path = None
-    glb_error = None
+    depth_only_glb_path = None
+    fused_glb_path = None
+    map_only_glb_path = None
+    glb_errors = {}
     if not args.no_glb:
         try:
             from g2_glb_markers import build_marker_document
@@ -259,12 +307,55 @@ def process(root: Path, snapshot: str, args, pipeline) -> dict:
             if args.urdf:
                 marker_kwargs["urdf_path"] = Path(args.urdf).expanduser().resolve()
             marker_document = build_marker_document(extrinsics, **marker_kwargs)
-            scene = fused_glb(result, marker_document, tint_strength=args.tint_strength,
-                              gripper_boxes_to_draw=() if args.no_gripper_shell else boxes)
-            glb_path = out_dir / "fused_voxels.glb"
-            scene.export(glb_path)
+            glb_jobs = (
+                (
+                    "depth_only",
+                    depth_only,
+                    out_dir / "depth_only_voxels.glb",
+                    0.0,
+                    (),
+                    "depth_only_voxels",
+                ),
+                (
+                    "fused",
+                    result,
+                    out_dir / "fused_voxels.glb",
+                    args.tint_strength,
+                    () if args.no_gripper_shell else boxes,
+                    "fused_voxels",
+                ),
+                (
+                    "mapanything_only",
+                    map_only,
+                    out_dir / "mapanything_only_voxels.glb",
+                    0.0,
+                    (),
+                    "mapanything_only_voxels",
+                ),
+            )
+            exported = {}
+            for label, cloud, path, tint, boxes_to_draw, geometry_name in glb_jobs:
+                try:
+                    fused_glb(
+                        cloud,
+                        marker_document,
+                        tint_strength=tint,
+                        gripper_boxes_to_draw=boxes_to_draw,
+                        geometry_name=geometry_name,
+                    ).export(path)
+                    exported[label] = path
+                except Exception as exc:
+                    glb_errors[label] = f"{type(exc).__name__}: {exc}"
+            depth_only_glb_path = exported.get("depth_only")
+            fused_glb_path = exported.get("fused")
+            map_only_glb_path = exported.get("mapanything_only")
         except Exception as exc:                     # markers are optional decoration
-            glb_error = f"{type(exc).__name__}: {exc}"
+            error = f"{type(exc).__name__}: {exc}"
+            glb_errors = {
+                "depth_only": error,
+                "fused": error,
+                "mapanything_only": error,
+            }
 
     report = dict(result.report)
     report.update({
@@ -283,9 +374,18 @@ def process(root: Path, snapshot: str, args, pipeline) -> dict:
             "note": "operator-measured proxy anchored to the wrist camera; not a confirmed TCP",
         },
         "outputs": {
+            "depth_only_voxels": str(depth_only_path.resolve()),
+            "depth_only_glb": (
+                str(depth_only_glb_path.resolve()) if depth_only_glb_path else None
+            ),
             "fused_voxels": str(fused_path.resolve()),
-            "fused_glb": str(glb_path.resolve()) if glb_path else None,
-            "glb_error": glb_error,
+            "fused_glb": str(fused_glb_path.resolve()) if fused_glb_path else None,
+            "mapanything_only_voxels": str(map_only_path.resolve()),
+            "mapanything_only_glb": (
+                str(map_only_glb_path.resolve()) if map_only_glb_path else None
+            ),
+            "glb_error": glb_errors.get("fused"),
+            "glb_errors": glb_errors,
         },
     })
     write_json(out_dir / "fusion_report.json", report)
@@ -386,10 +486,11 @@ def main() -> int:
                 print(f"    fused {report['fused_voxels']} "
                       f"(map fill {report['map_voxels_admitted_as_fill']}, "
                       f"snapped {report['map_voxels_snapped_to_depth']})")
-            if report["outputs"]["fused_glb"]:
-                print(f"    glb: {report['outputs']['fused_glb']}")
-            elif report["outputs"]["glb_error"]:
-                print(f"    glb skipped: {report['outputs']['glb_error']}", file=sys.stderr)
+            for key in ("depth_only_glb", "fused_glb", "mapanything_only_glb"):
+                if report["outputs"][key]:
+                    print(f"    {key}: {report['outputs'][key]}")
+            for key, error in report["outputs"]["glb_errors"].items():
+                print(f"    {key} GLB skipped: {error}", file=sys.stderr)
         return 0
     except (AvoidanceError, OSError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

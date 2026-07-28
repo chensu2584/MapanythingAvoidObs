@@ -262,11 +262,18 @@ MapAnything `46,549 → 18,873 → 18,466 → 18,419 → 11,113`。其中 XY 裁
 目视核对（侧视图）：深度真值集中在桌面顶面与物体上表面，map 补齐落在桌面下方与物体侧面/背面
 ——正是深度相机的遮挡区，两者互补且未形成双层壳。融合后覆盖较纯深度提升约 80–100%。
 
-输出 `<root>/fused/<snapshot>/`：
+输出 `<root>/fused/<snapshot>/`（总 Pipeline GUI 显式把该目录改为
+`<run>/versions/<snapshot>/`）：
 
-- `fused_voxels.npz`：含 `provenance` / `provenance_names` 字段，`conf` 对深度为 1.0、map 为 0.5；
-  已验证可被 `MapAnythingPipeline/scene_simplify.py` 的 `load_voxels` 直接读取；
-- `fusion_report.json`：输入哈希/参数/夹爪盒定义/各类计数。
+- `depth_only_voxels.{npz,glb}`：只含清理后的度量深度；
+- `fused_voxels.{npz,glb}`：含 `provenance` / `provenance_names` 字段，occupancy 模式的
+  `conf` 为 1.00 / 0.50 / 0.35；
+- `mapanything_only_voxels.{npz,glb}`：只含清理后的 MapAnything；
+- `fusion_report.json`：输入、参数、夹爪盒定义、两路清理阶段计数、融合计数和六个输出路径。
+
+三份版本都来自 `process()` 中同一次 `depth_clean` / `map_clean`，不是先各自调用一套参数相近
+但可能漂移的后处理。只要未传 `--no-workspace-crop`，三份都必须满足同一人工桌面 XY 范围。
+已验证三份 NPZ 可被 `MapAnythingPipeline/scene_simplify.py` 的 `load_voxels` 直接读取。
 
 用法：
 
@@ -284,22 +291,26 @@ PYTHONPATH=Avoid python Avoid/scripts/fuse_depth_and_map.py \
 或读 `MAPANYTHING_PIPELINE`）。清理参数：`--table-xy-bounds` / `--no-workspace-crop` /
 `--cluster-eps` / `--min-cluster` / `--table-thickness`。
 
-### 融合结果 GLB
+### 三版本结果 GLB
 
-`fuse_depth_and_map.py` 默认同时导出 `fused_voxels.glb`，沿用与
+`fuse_depth_and_map.py` 默认同时导出三份 GLB，沿用与
 `reconstruct_depth_voxels.py` / `scene_simplify.py` 相同的绕 X 轴 180° viewer transform，
 因此可与 `voxels.glb`、`direct_depth_voxels.glb`、`cleaned_voxels.glb` 直接叠加比较，
 并复用 `g2_glb_markers.py` 的同一套机器人参考标记。
 
 GLB 内含：
 
-- `fused_voxels`：体素立方体，保留采集颜色但按 provenance 着色——**绿色=深度真值，
+- `depth_only_voxels` / `mapanything_only_voxels`：始终使用各自采集颜色；
+- `fused_voxels`：保留采集颜色但可按 provenance 着色——**绿色=深度真值，
   琥珀=MapAnything 补齐**（混合强度由 `--tint-strength` 控制，默认 0.55；
-  场景本身偏暗时建议 0.85）；
+  场景本身偏暗时建议 0.85；总 Pipeline GUI 固定为 `0.0` 以输出正常颜色）；
 - `gripper_removal_left/right`：红色半透明壳，显示被当作夹爪切除的区域（`--no-gripper-shell` 可关）；
 - 全套标记：`base_link` 原点、头部/左右手相机、左右法兰参考中心与简约手。
 
-`7.24Exp` 三帧实测 GLB 约 3.2–3.4 MB（清理后体素大幅减少）。0003 帧顶点着色校验：
+总 Pipeline GUI 固定传 `--no-gripper-shell --tint-strength 0.0`，所以正式三版本使用正常颜色、
+不显示删除代理盒，但仍保存代理盒参数到 report。
+
+`7.24Exp` 三帧融合 GLB 约 3.2–3.4 MB（清理后体素大幅减少）。0003 帧顶点着色校验：
 绿 74,024 / 琥珀 21,256，恰为 9,253 与 2,657 个体素各 ×8 顶点，与 npz 的 `provenance` 完全一致。
 
 ```bash
@@ -311,7 +322,8 @@ PYTHONPATH=Avoid python Avoid/scripts/fuse_depth_and_map.py \
 
 `--urdf` 用于法兰标记；本机目录结构与 `g2_glb_markers.DEFAULT_URDF` 假设的
 `../G2/G2_parameters/...` 不同，故需显式指定。标记生成失败不会影响融合本身，
-`fusion_report.json` 的 `outputs.glb_error` 会记录原因。`--no-glb` 可跳过导出。
+`fusion_report.json` 的 `outputs.glb_errors` 会逐版本记录原因，并保留旧兼容字段
+`outputs.glb_error` 表示融合 GLB 错误。`--no-glb` 可跳过全部 GLB 导出。
 
 ## 方法三：置信度加权占据融合（默认）
 
