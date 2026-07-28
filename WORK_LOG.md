@@ -294,7 +294,8 @@ conda run -n MAP python Avoid/scripts/review_self_filter.py \
 - `MapAnythingPipeline/g2_full_pipeline_gui.py` 已调用上述接口，从指定四相机采集脚本一路运行
   到 `<run>/versions/<snapshot>/` 三份正式输出；中间 `map/` 和 `depth/` GLB 不视为统一裁剪
   的规划输入。
-- 相关测试 32 项通过。真实 `snapshot_20260724_040712_0001` 冒烟得到 only 深度 9,709、
+- MAP 环境补齐 pytest 后，Avoid 全套测试 `83 passed, 3 skipped`。真实
+  `snapshot_20260724_040712_0001` 冒烟得到 only 深度 9,709、
   融合 17,592、only MapAnything 18,270 个体素；三份人工桌面 XY 越界均为 0，三份 GLB
   均可复读并含完整标记。
 - 实机夹爪与 URDF omnipicker 仍不一致；去夹爪是操作者实测代理盒，视觉简约手和法兰不是
